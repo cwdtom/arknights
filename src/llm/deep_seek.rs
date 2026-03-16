@@ -128,14 +128,14 @@ impl DeepSeek {
             // content or tool call
             let (messages, is_done) = self.build_new_message(choice).await;
 
-            // extract content before extend consumes messages
             if is_done {
-                let content = messages
-                    .iter()
-                    .map(|m| m.content.clone())
-                    .collect::<Vec<String>>()
-                    .join("\n");
-                re_act_resp = ReActResp { content, is_done };
+                // return the last final answer
+                let answer = messages.last().expect("exception reAct done");
+                re_act_resp = ReActResp {
+                    content: answer.content.clone(),
+                    is_done,
+                };
+                break;
             }
 
             self.messages.extend(messages);
