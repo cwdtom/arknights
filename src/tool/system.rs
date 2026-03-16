@@ -4,8 +4,8 @@ use crate::tool::base_tool::{BaseTool, LlmTool};
 use chrono::Local;
 use serde::Serialize;
 
-const GROUP_NAME: &'static str = "system";
-const GROUP_DESC: &'static str = "System tools(include `date`).";
+const GROUP_NAME: &str = "system";
+const GROUP_DESC: &str = "System tools(include `date`).";
 
 #[derive(Serialize, Debug)]
 pub struct DateTool {
@@ -32,7 +32,7 @@ impl DateTool {
         let base_tool = BaseTool {
             group_name: GROUP_NAME.to_string(),
             group_description: GROUP_DESC.to_string(),
-            name: (GROUP_NAME.to_string() + "_date").to_string(),
+            name: GROUP_NAME.to_string() + "_date",
             description: "Get system current date, format: yyyy-MM-dd HH:mm:ss".to_string(),
         };
 

@@ -1,10 +1,10 @@
-use serde::Deserialize;
-use tracing::error;
 use crate::llm::deep_seek::{Message, Tool};
 use crate::{llm, tool};
+use anyhow::anyhow;
+use serde::Deserialize;
 
-const MAX_TURNS: i8 = 100;
-const THINK_PROMPT: &'static str = "You are the \"think\" node in the ReAct process, \
+const MAX_TURNS: u8 = 100;
+const THINK_PROMPT: &str = "You are the \"think\" node in the ReAct process, \
 using appropriate tools to solve problems. \
 When it is confirmed that the question has been fully answered, set is_done to true. \
 Response format MUST follow this JSON format: {\"content\":\"response\", \"is_done\": true}";
@@ -37,30 +37,23 @@ impl ReAct {
         ReAct { ds }
     }
 
-    pub async fn execute(&mut self) -> Result<Message, String> {
-        let mut turns = 1;
-
-        while turns < MAX_TURNS {
-            turns += 1;
-
+    pub async fn execute(&mut self) -> anyhow::Result<Message> {
+        for turn in 1..=MAX_TURNS {
             match self.ds.call().await {
                 Ok(re_act_resp) => {
                     if re_act_resp.is_done {
-                        return Ok(Message::new(llm::deep_seek::Role::Assistant, re_act_resp.content.to_string()));
+                        return Ok(Message::new(
+                            llm::deep_seek::Role::Assistant,
+                            re_act_resp.content,
+                        ));
                     }
-
-                    if turns >= MAX_TURNS {
-                        error!("reAct turns exceeded");
-                        return Err("reAct turn exceeded".to_string());
-                    }
-                },
+                }
                 Err(e) => {
-                    error!("reAct execute error: {}", e);
-                    return Err("reAct execute error".to_string());
+                    return Err(anyhow!("reAct execute error: {}", e));
                 }
             }
         }
-
-        Err("compiler need".to_string())
+        
+        Err(anyhow!("reAct exceeded max turns ({MAX_TURNS})"))
     }
 }
