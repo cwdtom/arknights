@@ -1,29 +1,24 @@
-use std::collections::HashMap;
-use std::sync::LazyLock;
 use reqwest::Client;
 use serde::Serialize;
+use std::sync::LazyLock;
+use std::time::Duration;
 
 static CLIENT: LazyLock<Client> = LazyLock::new(Client::new);
 
-pub fn client() -> &'static Client {
-    &CLIENT
-}
-
 pub async fn post<T: Serialize + ?Sized>(
     url: &str,
-    headers: &HashMap<String, String>,
+    api_key: &str,
     body: &T,
 ) -> anyhow::Result<String> {
-    let mut request = CLIENT.post(url);
-
-    for (key, value) in headers {
-        request = request.header(key.as_str(), value.as_str());
-    }
+    let request = CLIENT.post(url);
 
     let raw = request
+        .timeout(Duration::from_secs(60))
+        .header("Authorization", format!("Bearer {}", api_key))
         .json(body)
         .send()
         .await?
+        .error_for_status()?
         .text()
         .await?;
 

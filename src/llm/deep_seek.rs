@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::LazyLock;
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -106,10 +105,7 @@ impl DeepSeek {
 
     pub async fn call(&mut self) -> anyhow::Result<ChatResponse> {
         info!("deepseek llm request: {:?}", self);
-        let headers = HashMap::from([
-            ("Authorization".to_string(), format!("Bearer {}", *API_KEY)),
-        ]);
-        let raw = util::http_utils::post(BASE_URL, &headers, self).await?;
+        let raw = util::http_utils::post(BASE_URL, &API_KEY, self).await?;
         info!("deepseek llm response: {}", raw);
 
         Ok(serde_json::from_str(&raw)?)
