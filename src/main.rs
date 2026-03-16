@@ -3,6 +3,7 @@ use tracing::info;
 pub mod agent;
 pub mod llm;
 pub mod tool;
+pub mod util;
 
 #[tokio::main]
 async fn main() {

@@ -14,7 +14,7 @@ pub struct BaseTool {
 pub trait LlmTool {
     /// generate deepseek tool schema
     fn deep_seek_schema(&self) -> llm::deep_seek::Function;
-    
+
     /// tool call
     async fn deep_seek_call(&self, tool_call: &ToolCall) -> String;
 }

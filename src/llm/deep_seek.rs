@@ -1,6 +1,8 @@
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::LazyLock;
+use serde::{Deserialize, Serialize};
 use tracing::info;
+use crate::util;
 
 const BASE_URL: &str = "https://api.deepseek.com/chat/completions";
 static API_KEY: LazyLock<String> =
@@ -104,16 +106,10 @@ impl DeepSeek {
 
     pub async fn call(&mut self) -> anyhow::Result<ChatResponse> {
         info!("deepseek llm request: {:?}", self);
-
-        let client = reqwest::Client::new();
-        let raw = client
-            .post(BASE_URL)
-            .header("Authorization", format!("Bearer {}", *API_KEY))
-            .json(self)
-            .send()
-            .await?
-            .text()
-            .await?;
+        let headers = HashMap::from([
+            ("Authorization".to_string(), format!("Bearer {}", *API_KEY)),
+        ]);
+        let raw = util::http_utils::post(BASE_URL, &headers, self).await?;
         info!("deepseek llm response: {}", raw);
 
         Ok(serde_json::from_str(&raw)?)
