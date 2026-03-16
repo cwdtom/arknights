@@ -1,6 +1,3 @@
-use crate::agent::re_act::ReActResp;
-use crate::tool;
-use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 use tracing::info;
@@ -71,7 +68,7 @@ pub struct ChatResponse {
     pub choices: Vec<Choice>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Choice {
     pub message: Message,
 }
@@ -105,7 +102,7 @@ impl DeepSeek {
         }
     }
 
-    pub async fn call(&mut self) -> anyhow::Result<ReActResp> {
+    pub async fn call(&mut self) -> anyhow::Result<ChatResponse> {
         info!("deepseek llm request: {:?}", self);
 
         let client = reqwest::Client::new();
@@ -119,93 +116,7 @@ impl DeepSeek {
             .await?;
         info!("deepseek llm response: {}", raw);
 
-        let resp: ChatResponse = serde_json::from_str(&raw)?;
-
-        let mut re_act_resp: ReActResp = ReActResp {
-            content: "".to_string(),
-            is_done: false,
-        };
-        for choice in resp.choices {
-            // content or tool call
-            let (messages, is_done) = self.build_new_message(choice).await?;
-
-            if is_done {
-                // return the last final answer
-                let answer = match messages.last() {
-                    Some(message) => message,
-                    None => {
-                        return Err(anyhow!("exception reAct done"));
-                    }
-                };
-
-                re_act_resp = ReActResp {
-                    content: answer.content.clone(),
-                    is_done,
-                };
-                break;
-            }
-
-            self.messages.extend(messages);
-        }
-
-        Ok(re_act_resp)
-    }
-
-    /// build new message
-    /// <new messages, is_done>
-    async fn build_new_message(&self, choice: Choice) -> anyhow::Result<(Vec<Message>, bool)> {
-        match choice.message.tool_calls {
-            Some(calls) => {
-                // build assistant message
-                let assistant_message = Message {
-                    role: Role::Assistant,
-                    tool_call_id: None,
-                    content: choice.message.content.clone(),
-                    tool_calls: Some(calls.clone()),
-                };
-
-                // tool call
-                let mut tools: Vec<Message> = vec![assistant_message];
-                for call in calls {
-                    let tool = tool::get_tool(&call.function.name);
-                    match tool {
-                        Some(tool) => {
-                            let res = tool.deep_seek_call(&call).await;
-
-                            // set resp to messages
-                            let tool: Message = Message {
-                                role: Role::Tool,
-                                tool_call_id: Some(call.id),
-                                content: res.to_string(),
-                                tool_calls: None,
-                            };
-
-                            tools.push(tool);
-                        }
-                        None => {
-                            // set resp to messages
-                            let tool: Message = Message {
-                                role: Role::Tool,
-                                tool_call_id: Some(call.id),
-                                content: "tool not found".to_string(),
-                                tool_calls: None,
-                            };
-
-                            tools.push(tool);
-                        },
-                    }
-                }
-
-                Ok((tools, false))
-            }
-            None => {
-                // set resp to messages
-                let re_act_resp: ReActResp = serde_json::from_str(&choice.message.content)?;
-                let assistant: Message = Message::new(Role::Assistant, re_act_resp.content);
-
-                Ok((vec![assistant], re_act_resp.is_done))
-            }
-        }
+        Ok(serde_json::from_str(&raw)?)
     }
 }
 
