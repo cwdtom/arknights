@@ -41,14 +41,16 @@ impl ReAct {
             // THINK
             let choice = self.think().await?;
 
-            match choice.message.tool_calls.clone() {
+            let Message { content, tool_calls, .. } = choice.message;
+
+            match tool_calls {
                 // ACT
                 Some(calls) => {
                     // build assistant message
                     let assistant_message = Message {
                         role: Role::Assistant,
                         tool_call_id: None,
-                        content: choice.message.content.clone(),
+                        content,
                         tool_calls: Some(calls.clone()),
                     };
                     // set tool call
@@ -60,18 +62,18 @@ impl ReAct {
                 },
                 None => {
                     // set text resp to messages
-                    let re_act_resp: ReActResp = serde_json::from_str(&choice.message.content)?;
-                    let assistant: Message = Message::new(Role::Assistant, re_act_resp.content.clone());
+                    let re_act_resp: ReActResp = serde_json::from_str(&content)?;
 
                     // reAct done
                     if re_act_resp.is_done {
                         return Ok(Message::new(
                             Role::Assistant,
-                            re_act_resp.content.clone(),
+                            re_act_resp.content,
                         ));
                     }
 
                     // OBSERVE
+                    let assistant = Message::new(Role::Assistant, re_act_resp.content);
                     self.ds.messages.push(assistant);
                 }
             }
