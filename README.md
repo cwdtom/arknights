@@ -39,6 +39,8 @@ src/
 │   └── re_act.rs        # ReAct loop implementation
 ├── llm/
 │   └── deep_seek.rs     # DeepSeek API client
+├── util/
+│   └── http_utils.rs    # Shared HTTP client with Bearer auth, timeout, and status checking
 └── tool/
     ├── base_tool.rs     # LlmTool trait definition
     ├── mod.rs           # Tool registry (TOOL_REGISTRY)
