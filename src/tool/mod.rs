@@ -1,10 +1,9 @@
 pub(crate) mod base_tool;
 pub(crate) mod system;
 
+use base_tool::LlmTool;
 use std::collections::HashMap;
 use std::sync::LazyLock;
-use base_tool::LlmTool;
-use crate::llm::deep_seek::{Function, Tool};
 
 /// static tool registry: name -> Box<dyn LlmTool>
 static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> =

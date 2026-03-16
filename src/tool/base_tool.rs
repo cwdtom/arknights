@@ -10,10 +10,11 @@ pub struct BaseTool {
     pub description: String,
 }
 
+#[async_trait::async_trait]
 pub trait LlmTool {
     /// generate deepseek tool schema
     fn deep_seek_schema(&self) -> llm::deep_seek::Function;
     
     /// tool call
-    fn deep_seek_call(&self, tool_call: &ToolCall) -> String;
+    async fn deep_seek_call(&self, tool_call: &ToolCall) -> String;
 }

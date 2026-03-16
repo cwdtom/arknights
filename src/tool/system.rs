@@ -12,6 +12,7 @@ pub struct DateTool {
     pub base_tool: BaseTool,
 }
 
+#[async_trait::async_trait]
 impl LlmTool for DateTool {
     fn deep_seek_schema(&self) -> llm::deep_seek::Function {
         llm::deep_seek::Function {
@@ -21,7 +22,7 @@ impl LlmTool for DateTool {
         }
     }
 
-    fn deep_seek_call(&self, _: &ToolCall) -> String {
+    async fn deep_seek_call(&self, _: &ToolCall) -> String {
         Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
     }
 }

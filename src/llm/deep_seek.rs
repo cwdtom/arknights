@@ -126,7 +126,7 @@ impl DeepSeek {
         };
         for choice in resp.choices {
             // content or tool call
-            let (messages, is_done) = self.build_new_message(choice);
+            let (messages, is_done) = self.build_new_message(choice).await;
 
             // extract content before extend consumes messages
             if is_done {
@@ -146,7 +146,7 @@ impl DeepSeek {
 
     /// build new message
     /// <new messages, is_done>
-    fn build_new_message(&self, choice: Choice) -> (Vec<Message>, bool) {
+    async fn build_new_message(&self, choice: Choice) -> (Vec<Message>, bool) {
         // build assistant message
         let assistant_message = Message {
             role: Role::Assistant,
@@ -163,7 +163,7 @@ impl DeepSeek {
                     let tool = tool::get_tool(&*call.function.name);
                     match tool {
                         Some(tool) => {
-                            let res = tool.deep_seek_call(&call);
+                            let res = tool.deep_seek_call(&call).await;
 
                             // set resp to messages
                             let tool: Message = Message {
