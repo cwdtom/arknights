@@ -1,4 +1,4 @@
 pub mod re_act;
-pub(crate) mod plan;
+pub mod plan;
 
 pub use re_act::ReAct;

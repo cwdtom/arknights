@@ -9,13 +9,15 @@ const MAX_TURNS: u8 = 20;
 const THINK_PROMPT: &str = "You are the \"think\" node in the ReAct process, \
 using appropriate tools to solve problems. \
 When it is confirmed that the question has been fully answered, set is_done to true. \
-Response format MUST follow this JSON format: {\"content\":\"response\", \"is_done\": true}";
+If it is determined that the task needs to be re-planned, set needs_replan to true. \
+Response format MUST follow this JSON format: {\"content\":\"response\", \"is_done\": true, \"needs_replan\": true}";
 
 /// reAct resp format
 #[derive(Deserialize, Debug)]
 pub struct ReActResp {
     pub content: String,
     pub is_done: bool,
+    pub needs_replan: bool,
 }
 
 /// agent reAct module
@@ -25,11 +27,6 @@ pub struct ReAct {
 
 impl ReAct {
     pub fn new(mut messages: Vec<Message>) -> Self {
-        // clear original system message
-        if !messages.is_empty() && messages[0].role == Role::System {
-            messages.remove(0);
-        }
-
         // system message
         let system: Message = Message::new(Role::System, THINK_PROMPT.to_string());
         messages.insert(0, system);
@@ -43,7 +40,7 @@ impl ReAct {
         ReAct { llm: Box::new(llm) }
     }
 
-    pub async fn execute(&mut self) -> anyhow::Result<Message> {
+    pub async fn execute(&mut self) -> anyhow::Result<ReActResp> {
         for _ in 1..=MAX_TURNS {
             // THINK
             let choice = self.think().await?;
@@ -76,8 +73,8 @@ impl ReAct {
                     let re_act_resp: ReActResp = serde_json::from_str(&content)?;
 
                     // reAct done
-                    if re_act_resp.is_done {
-                        return Ok(Message::new(Role::Assistant, re_act_resp.content));
+                    if re_act_resp.is_done || re_act_resp.needs_replan {
+                        return Ok(re_act_resp);
                     }
 
                     // OBSERVE

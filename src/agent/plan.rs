@@ -1,6 +1,6 @@
 use crate::agent::{ReAct};
 use crate::llm;
-use crate::llm::{LlmProvider, Message};
+use crate::llm::{LlmProvider, Message, Role};
 use anyhow::anyhow;
 use serde::Deserialize;
 use tracing::info;
@@ -16,27 +16,27 @@ Response format MUST follow this JSON format: {\"plans\": [\"subTaskA\",\"subTas
 
 /// agent plan module
 pub struct Plan {
-    pub plans: Vec<String>,
-    pub llm: Box<dyn LlmProvider>,
+    plans: Vec<String>,
+    llm: Box<dyn LlmProvider>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct PlanResp {
-    pub plans: Vec<String>,
-    pub is_done: bool,
-    pub content: String,
+    plans: Vec<String>,
+    is_done: bool,
+    content: String,
 }
 
 impl Plan {
     pub async fn new(user_message: String) -> anyhow::Result<Self> {
         // set system prompt
-        let system = Message::new(llm::Role::System, PLAN_PROMPT.to_string());
+        let system = Message::new(Role::System, PLAN_PROMPT.to_string());
         let mut messages = vec![system];
 
         // TODO set history chat
 
         // make user message
-        let user = Message::new(llm::Role::User, user_message.to_string());
+        let user = Message::new(Role::User, user_message);
         messages.push(user);
 
         // make plan
@@ -57,20 +57,28 @@ impl Plan {
     }
 
     pub async fn execute(&mut self) -> anyhow::Result<()> {
+        let mut re_act_history: Vec<Message> = vec![];
+
         for _ in 1..=MAX_TURNS {
             for plan in &self.plans {
                 // set sub task
-                let sub_message = Message::new(llm::Role::User, plan.to_string());
-                self.llm.push_message(sub_message);
+                let sub_message = Message::new(Role::User, plan.to_string());
+                re_act_history.push(sub_message);
 
                 // init reAct
-                let mut re_act = ReAct::new(self.llm.clone_messages());
-                let answer = re_act.execute().await;
+                let mut re_act = ReAct::new(re_act_history.clone());
+                let re_act_resp = re_act.execute().await?;
                 // set sub answer
-                self.llm.push_message(answer?);
+                let answer = Message::new(Role::User, re_act_resp.content);
+                self.llm.push_message(answer.clone());
+                re_act_history.push(answer);
+
+                if re_act_resp.needs_replan {
+                    break;
+                }
             }
 
-            // generate final answer
+            // REPLAN
             let chat_resp = self.llm.call().await?;
             match chat_resp.choices.first() {
                 Some(choice) => {
@@ -78,8 +86,7 @@ impl Plan {
 
                     if plan_resp.is_done {
                         // finish
-                        info!("{:?}", self.llm.clone_messages());
-                        info!("finial answer: {}", plan_resp.content);
+                        info!("final answer: {}", plan_resp.content);
                         return Ok(());
                     } else {
                         // update plans

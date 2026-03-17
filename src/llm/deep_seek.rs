@@ -34,7 +34,7 @@ impl DeepSeek {
 #[async_trait::async_trait]
 impl LlmProvider for DeepSeek {
     async fn call(&mut self) -> anyhow::Result<ChatResponse> {
-        info!("deepseek llm request: {:?}", self);
+        info!("deepseek llm request: {}", serde_json::to_string(&self.llm)?);
         let raw = util::http_utils::post(BASE_URL, &API_KEY, &self.llm).await?;
         info!("deepseek llm response: {}", raw);
 
