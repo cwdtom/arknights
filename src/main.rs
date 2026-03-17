@@ -11,8 +11,8 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     // build ds
-    let user = llm::deep_seek::Message::new(
-        llm::base_llm::Role::User,
+    let user = llm::Message::new(
+        llm::Role::User,
         "给我获取当前系统时间".to_string(),
     );
     let mut messages = vec![user];

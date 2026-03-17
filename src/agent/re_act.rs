@@ -1,7 +1,9 @@
-use crate::{llm, tool};
+use crate::llm;
+use crate::llm::base_llm::{Choice, ToolCall};
+use crate::llm::{ChatResponse, LlmProvider, Message, Role, Tool};
+use crate::tool;
 use anyhow::anyhow;
 use serde::Deserialize;
-use crate::llm::base_llm::{ChatResponse, Choice, Message, Role, Tool, ToolCall};
 
 const MAX_TURNS: u8 = 100;
 const THINK_PROMPT: &str = "You are the \"think\" node in the ReAct process, \
@@ -18,7 +20,7 @@ pub struct ReActResp {
 
 /// agent reAct module
 pub struct ReAct {
-    pub ds: llm::base_llm::Llm,
+    pub llm: Box<dyn LlmProvider>,
 }
 
 impl ReAct {
@@ -32,8 +34,8 @@ impl ReAct {
             .map(|t| Tool::new(t.deep_seek_schema()))
             .collect();
 
-        let ds = llm::deep_seek::Llm::deep_seek_new(messages, tools);
-        ReAct { ds }
+        let llm = llm::deep_seek::DeepSeek::new(messages, tools);
+        ReAct { llm: Box::new(llm) }
     }
 
     pub async fn execute(&mut self) -> anyhow::Result<Message> {
@@ -41,7 +43,11 @@ impl ReAct {
             // THINK
             let choice = self.think().await?;
 
-            let Message { content, tool_calls, .. } = choice.message;
+            let Message {
+                content,
+                tool_calls,
+                ..
+            } = choice.message;
 
             match tool_calls {
                 // ACT
@@ -54,27 +60,24 @@ impl ReAct {
                         tool_calls: Some(calls.clone()),
                     };
                     // set tool call
-                    self.ds.messages.push(assistant_message);
+                    self.llm.push_message(assistant_message);
 
                     // OBSERVE
                     let tools = self.act(calls).await?;
-                    self.ds.messages.extend(tools);
-                },
+                    self.llm.extend_messages(tools);
+                }
                 None => {
                     // set text resp to messages
                     let re_act_resp: ReActResp = serde_json::from_str(&content)?;
 
                     // reAct done
                     if re_act_resp.is_done {
-                        return Ok(Message::new(
-                            Role::Assistant,
-                            re_act_resp.content,
-                        ));
+                        return Ok(Message::new(Role::Assistant, re_act_resp.content));
                     }
 
                     // OBSERVE
                     let assistant = Message::new(Role::Assistant, re_act_resp.content);
-                    self.ds.messages.push(assistant);
+                    self.llm.push_message(assistant);
                 }
             }
         }
@@ -84,7 +87,7 @@ impl ReAct {
 
     async fn think(&mut self) -> anyhow::Result<Choice> {
         // THINK
-        let chat_resp: ChatResponse = self.ds.deep_seek_call().await?;
+        let chat_resp: ChatResponse = self.llm.call().await?;
         match chat_resp.choices.first() {
             Some(choice) => Ok(choice.clone()),
             None => Err(anyhow!("llm response is empty")),
@@ -106,14 +109,12 @@ impl ReAct {
                         tool_calls: None,
                     }
                 }
-                None => {
-                    Message {
-                        role: Role::Tool,
-                        tool_call_id: Some(call.id),
-                        content: "tool not found".to_string(),
-                        tool_calls: None,
-                    }
-                }
+                None => Message {
+                    role: Role::Tool,
+                    tool_call_id: Some(call.id),
+                    content: "tool not found".to_string(),
+                    tool_calls: None,
+                },
             };
 
             // set tool resp

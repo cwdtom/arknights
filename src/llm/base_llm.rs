@@ -80,6 +80,15 @@ pub struct FunctionCall {
     pub arguments: String,
 }
 
+#[async_trait::async_trait]
+pub trait LlmProvider: Send {
+    async fn call(&mut self) -> anyhow::Result<ChatResponse>;
+
+    fn push_message(&mut self, message: Message);
+
+    fn extend_messages(&mut self, messages: Vec<Message>);
+}
+
 impl Tool {
     pub fn new(function: Function) -> Self {
         Tool {
