@@ -16,7 +16,9 @@ Response format MUST follow this JSON format: {\"content\":\"response\", \"is_do
 #[derive(Deserialize, Debug)]
 pub struct ReActResp {
     pub content: String,
+    #[serde(default)]
     pub is_done: bool,
+    #[serde(default)]
     pub needs_replan: bool,
 }
 
@@ -72,7 +74,7 @@ impl ReAct {
                     // set text resp to messages
                     let re_act_resp: ReActResp = serde_json::from_str(&content)?;
 
-                    // reAct done
+                    // reAct done or needs replan
                     if re_act_resp.is_done || re_act_resp.needs_replan {
                         return Ok(re_act_resp);
                     }

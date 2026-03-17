@@ -89,8 +89,6 @@ pub trait LlmProvider: Send {
     fn push_message(&mut self, message: Message);
 
     fn extend_messages(&mut self, messages: Vec<Message>);
-
-    fn clone_messages(&self) -> Vec<Message>;
 }
 
 impl Tool {

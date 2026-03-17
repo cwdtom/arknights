@@ -48,8 +48,4 @@ impl LlmProvider for DeepSeek {
     fn extend_messages(&mut self, messages: Vec<Message>) {
         self.llm.messages.extend(messages);
     }
-
-    fn clone_messages(&self) -> Vec<Message> {
-        self.llm.messages.clone()
-    }
 }

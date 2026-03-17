@@ -23,6 +23,7 @@ pub struct Plan {
 #[derive(Deserialize, Debug)]
 pub struct PlanResp {
     plans: Vec<String>,
+    #[serde(default)]
     is_done: bool,
     content: String,
 }
