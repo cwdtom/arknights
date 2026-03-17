@@ -14,6 +14,10 @@ pub struct DateTool {
 
 #[async_trait::async_trait]
 impl LlmTool for DateTool {
+    fn group_name(&self) -> &str {
+        &self.base_tool.group_name
+    }
+
     fn deep_seek_schema(&self) -> llm::base_llm::Function {
         llm::base_llm::Function {
             name: self.base_tool.name.clone(),

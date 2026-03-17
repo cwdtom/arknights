@@ -28,13 +28,13 @@ pub struct ReAct {
 }
 
 impl ReAct {
-    pub fn new(mut messages: Vec<Message>) -> Self {
+    pub fn new(mut messages: Vec<Message>, tools_group: Vec<String>) -> Self {
         // system message
         let system: Message = Message::new(Role::System, THINK_PROMPT.to_string());
         messages.insert(0, system);
 
-        let tools = tool::all_tools()
-            .iter()
+        let tools = tools_group.iter()
+            .flat_map(|t| tool::get_tool_by_group(t))
             .map(|t| Tool::new(t.deep_seek_schema()))
             .collect();
 

@@ -7,25 +7,33 @@ use tracing::info;
 
 const MAX_TURNS: u8 = 20;
 const PLAN_PROMPT: &str = "You are the \"PLAN\" node in the Plan-ReAct-Replan process, \
-formulate an appropriate execution plan to answer the user's question. \
+formulate an appropriate execution plan with tool to answer the user's question. \
 When it is confirmed that the question has been fully answered, set is_done to true. \
 When unable to provide an answer, reformulate the plan. \
 You have these tools(no need to actually call it, just reflect it in the plan) available for use: \
 - system: System-related tools \
-Response format MUST follow this JSON format: {\"plans\": [\"subTaskA\",\"subTaskB\"], \"content\": \"final answer\",\"is_done\": false}";
+Response format MUST follow this JSON format: \
+{\"plans\": [{\"task\": \"subTaskA\", \"tools\": [\"system\"]},{\"task\": \"subTaskB\", \"tools\": []}], \
+\"content\": \"final answer\",\"is_done\": false}";
 
 /// agent plan module
 pub struct Plan {
-    plans: Vec<String>,
+    plans: Vec<Task>,
     llm: Box<dyn LlmProvider>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct PlanResp {
-    plans: Vec<String>,
+    plans: Vec<Task>,
     #[serde(default)]
     is_done: bool,
     content: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Task {
+    task: String,
+    tools: Vec<String>,
 }
 
 impl Plan {
@@ -63,11 +71,11 @@ impl Plan {
         for _ in 1..=MAX_TURNS {
             for plan in &self.plans {
                 // set sub task
-                let sub_message = Message::new(Role::User, plan.to_string());
+                let sub_message = Message::new(Role::User, plan.task.clone());
                 re_act_history.push(sub_message);
 
                 // init reAct
-                let mut re_act = ReAct::new(re_act_history.clone());
+                let mut re_act = ReAct::new(re_act_history.clone(), plan.tools.clone());
                 let re_act_resp = re_act.execute().await?;
                 // set sub answer
                 let answer = Message::new(Role::User, re_act_resp.content);

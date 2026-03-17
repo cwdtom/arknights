@@ -28,3 +28,12 @@ pub fn all_tools() -> Vec<&'static (dyn LlmTool + Send + Sync)> {
         .map(|t| t.as_ref())
         .collect()
 }
+
+/// get tool by group
+pub fn get_tool_by_group(group: &str) -> Vec<&'static (dyn LlmTool + Send + Sync)> {
+    TOOL_REGISTRY
+        .values()
+        .filter(|t| t.group_name() == group)
+        .map(|t| t.as_ref())
+        .collect()
+}

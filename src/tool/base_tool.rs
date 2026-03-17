@@ -12,6 +12,9 @@ pub struct BaseTool {
 
 #[async_trait::async_trait]
 pub trait LlmTool {
+    /// get tool group name
+    fn group_name(&self) -> &str;
+
     /// generate deepseek tool schema
     fn deep_seek_schema(&self) -> llm::base_llm::Function;
 
