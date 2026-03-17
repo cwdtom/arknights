@@ -95,32 +95,22 @@ impl ReAct {
     }
 
     async fn act(&mut self, calls: Vec<ToolCall>) -> anyhow::Result<Vec<Message>> {
-        // tool call
-        let mut tools: Vec<Message> = vec![];
-        for call in calls {
-            let tool_message = match tool::get_tool(&call.function.name) {
-                Some(tool) => {
-                    let res = tool.deep_seek_call(&call).await;
-
-                    Message {
-                        role: Role::Tool,
-                        tool_call_id: Some(call.id),
-                        content: res.to_string(),
-                        tool_calls: None,
-                    }
-                }
-                None => Message {
+        let futures: Vec<_> = calls
+            .into_iter()
+            .map(|call| async move {
+                let content = match tool::get_tool(&call.function.name) {
+                    Some(t) => t.deep_seek_call(&call).await.to_string(),
+                    None => "tool not found".to_string(),
+                };
+                Message {
                     role: Role::Tool,
                     tool_call_id: Some(call.id),
-                    content: "tool not found".to_string(),
+                    content,
                     tool_calls: None,
-                },
-            };
+                }
+            })
+            .collect();
 
-            // set tool resp
-            tools.push(tool_message);
-        }
-
-        Ok(tools)
+        Ok(futures::future::join_all(futures).await)
     }
 }
