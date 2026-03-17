@@ -1,5 +1,5 @@
 use crate::llm;
-use crate::llm::deep_seek::{Parameters, ToolCall};
+use crate::llm::base_llm::{Parameters, ToolCall};
 use crate::tool::base_tool::{BaseTool, LlmTool};
 use chrono::Local;
 use serde::Serialize;
@@ -14,8 +14,8 @@ pub struct DateTool {
 
 #[async_trait::async_trait]
 impl LlmTool for DateTool {
-    fn deep_seek_schema(&self) -> llm::deep_seek::Function {
-        llm::deep_seek::Function {
+    fn deep_seek_schema(&self) -> llm::base_llm::Function {
+        llm::base_llm::Function {
             name: self.base_tool.name.clone(),
             description: self.base_tool.description.clone(),
             parameters: Parameters::new(serde_json::json!({}), vec![])

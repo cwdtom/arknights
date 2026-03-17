@@ -1,6 +1,6 @@
 use serde::Serialize;
 use crate::llm;
-use crate::llm::deep_seek::ToolCall;
+use crate::llm::base_llm::ToolCall;
 
 #[derive(Serialize, Debug)]
 pub struct BaseTool {
@@ -13,7 +13,7 @@ pub struct BaseTool {
 #[async_trait::async_trait]
 pub trait LlmTool {
     /// generate deepseek tool schema
-    fn deep_seek_schema(&self) -> llm::deep_seek::Function;
+    fn deep_seek_schema(&self) -> llm::base_llm::Function;
 
     /// tool call
     async fn deep_seek_call(&self, tool_call: &ToolCall) -> String;

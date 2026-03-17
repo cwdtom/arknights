@@ -1,7 +1,7 @@
-use crate::llm::deep_seek::{ChatResponse, Choice, Message, Role, Tool, ToolCall};
 use crate::{llm, tool};
 use anyhow::anyhow;
 use serde::Deserialize;
+use crate::llm::base_llm::{ChatResponse, Choice, Message, Role, Tool, ToolCall};
 
 const MAX_TURNS: u8 = 100;
 const THINK_PROMPT: &str = "You are the \"think\" node in the ReAct process, \
@@ -18,13 +18,13 @@ pub struct ReActResp {
 
 /// agent reAct module
 pub struct ReAct {
-    pub ds: llm::deep_seek::DeepSeek,
+    pub ds: llm::base_llm::Llm,
 }
 
 impl ReAct {
     pub fn new(mut messages: Vec<Message>) -> Self {
         // system message
-        let system: Message = Message::new(llm::deep_seek::Role::System, THINK_PROMPT.to_string());
+        let system: Message = Message::new(Role::System, THINK_PROMPT.to_string());
         messages.insert(0, system);
 
         let tools = tool::all_tools()
@@ -32,7 +32,7 @@ impl ReAct {
             .map(|t| Tool::new(t.deep_seek_schema()))
             .collect();
 
-        let ds = llm::deep_seek::DeepSeek::new(messages, tools);
+        let ds = llm::deep_seek::Llm::new(messages, tools);
         ReAct { ds }
     }
 

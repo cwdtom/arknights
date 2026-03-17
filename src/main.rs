@@ -12,7 +12,7 @@ async fn main() {
 
     // build ds
     let user = llm::deep_seek::Message::new(
-        llm::deep_seek::Role::User,
+        llm::base_llm::Role::User,
         "给我获取当前系统时间".to_string(),
     );
     let mut messages = vec![user];
