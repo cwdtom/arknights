@@ -12,7 +12,7 @@ When it is confirmed that the question has been fully answered, set is_done to t
 When unable to provide an answer, reformulate the plan. \
 You have these tools(no need to actually call it, just reflect it in the plan) available for use: \
 - system: System-related tools \
-Response format MUST follow this JSON format: {\"plans\": [\"subTaskA\",\"subTaskB\"], \"content\": \"final answer\",\"is_done\": true}";
+Response format MUST follow this JSON format: {\"plans\": [\"subTaskA\",\"subTaskB\"], \"content\": \"final answer\",\"is_done\": false}";
 
 /// agent plan module
 pub struct Plan {

@@ -10,7 +10,7 @@ const THINK_PROMPT: &str = "You are the \"think\" node in the ReAct process, \
 using appropriate tools to solve problems. \
 When it is confirmed that the question has been fully answered, set is_done to true. \
 If it is determined that the task needs to be re-planned, set needs_replan to true. \
-Response format MUST follow this JSON format: {\"content\":\"response\", \"is_done\": true, \"needs_replan\": true}";
+Response format MUST follow this JSON format: {\"content\":\"response\", \"is_done\": false, \"needs_replan\": false}";
 
 /// reAct resp format
 #[derive(Deserialize, Debug)]
