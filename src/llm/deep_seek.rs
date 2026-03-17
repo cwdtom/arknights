@@ -8,7 +8,7 @@ static API_KEY: LazyLock<String> =
     LazyLock::new(|| std::env::var("DEEPSEEK_API_KEY").expect("DEEPSEEK_API_KEY not set"));
 
 impl Llm {
-    pub fn new(messages: Vec<Message>, tools: Vec<Tool>) -> Self {
+    pub fn deep_seek_new(messages: Vec<Message>, tools: Vec<Tool>) -> Self {
         Llm {
             model: "deepseek-chat".to_string(),
             messages,
@@ -23,7 +23,7 @@ impl Llm {
         }
     }
 
-    pub async fn call(&mut self) -> anyhow::Result<ChatResponse> {
+    pub async fn deep_seek_call(&mut self) -> anyhow::Result<ChatResponse> {
         info!("deepseek llm request: {:?}", self);
         let raw = util::http_utils::post(BASE_URL, &API_KEY, self).await?;
         info!("deepseek llm response: {}", raw);

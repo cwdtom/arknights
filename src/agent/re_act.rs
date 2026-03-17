@@ -32,7 +32,7 @@ impl ReAct {
             .map(|t| Tool::new(t.deep_seek_schema()))
             .collect();
 
-        let ds = llm::deep_seek::Llm::new(messages, tools);
+        let ds = llm::deep_seek::Llm::deep_seek_new(messages, tools);
         ReAct { ds }
     }
 
@@ -84,7 +84,7 @@ impl ReAct {
 
     async fn think(&mut self) -> anyhow::Result<Choice> {
         // THINK
-        let chat_resp: ChatResponse = self.ds.call().await?;
+        let chat_resp: ChatResponse = self.ds.deep_seek_call().await?;
         match chat_resp.choices.first() {
             Some(choice) => Ok(choice.clone()),
             None => Err(anyhow!("llm response is empty")),
