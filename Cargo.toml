@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 # log
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # request
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
@@ -21,3 +21,5 @@ futures = "0.3.32"
 # exception
 anyhow = "1.0"
 tracing-appender = "0.2.4"
+# lark
+open-lark = { git = "https://github.com/foxzool/open-lark", features = ["websocket"] }
