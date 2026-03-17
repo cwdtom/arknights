@@ -1,7 +1,7 @@
-use std::sync::LazyLock;
-use tracing::info;
 use crate::llm::base_llm::{ChatResponse, Llm, LlmProvider, Message, ResponseFormat, Tool};
 use crate::util;
+use std::sync::LazyLock;
+use tracing::info;
 
 const BASE_URL: &str = "https://api.deepseek.com/chat/completions";
 static API_KEY: LazyLock<String> =
@@ -47,5 +47,9 @@ impl LlmProvider for DeepSeek {
 
     fn extend_messages(&mut self, messages: Vec<Message>) {
         self.llm.messages.extend(messages);
+    }
+
+    fn clone_messages(&self) -> Vec<Message> {
+        self.llm.messages.clone()
     }
 }

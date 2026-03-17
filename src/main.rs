@@ -1,4 +1,5 @@
-use tracing::info;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 pub mod agent;
 pub mod llm;
@@ -8,18 +9,17 @@ pub mod util;
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    tracing_subscriber::fmt::init();
 
-    // build ds
-    let user = llm::Message::new(
-        llm::Role::User,
-        "给我获取当前系统时间".to_string(),
-    );
-    let mut messages = vec![user];
+    let file_appender = tracing_appender::rolling::daily("logs", "arknights.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    let mut react = agent::ReAct::new(messages.clone());
-    let answer = react.execute().await;
-    messages.push(answer.unwrap());
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_ansi(false).with_writer(non_blocking))
+        .init();
 
-    info!("{:?}", messages);
+    let mut plan = agent::plan::Plan::new("计算当前系统时间2天后的时间".to_string())
+        .await
+        .expect("plan初始化出错");
+    plan.execute().await.expect("plan执行出错");
 }

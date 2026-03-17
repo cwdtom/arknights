@@ -28,6 +28,7 @@ pub struct Message {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
+#[derive(PartialEq)]
 pub enum Role {
     System,
     User,
@@ -87,6 +88,8 @@ pub trait LlmProvider: Send {
     fn push_message(&mut self, message: Message);
 
     fn extend_messages(&mut self, messages: Vec<Message>);
+
+    fn clone_messages(&self) -> Vec<Message>;
 }
 
 impl Tool {
