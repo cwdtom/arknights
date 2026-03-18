@@ -1,9 +1,8 @@
-use crate::agent::{ReAct};
-use crate::llm;
+use crate::agent::ReAct;
 use crate::llm::{LlmProvider, Message, Role};
+use crate::{im, llm};
 use anyhow::anyhow;
 use serde::Deserialize;
-use tracing::info;
 
 const MAX_TURNS: u8 = 20;
 const PLAN_PROMPT: &str = "You are the \"PLAN\" node in the Plan-ReAct-Replan process, \
@@ -56,6 +55,15 @@ impl Plan {
                 let plan_resp: PlanResp = serde_json::from_str(&choice.message.content)?;
                 llm.push_message(choice.message.clone());
 
+                // send replans
+                im::lark::async_send(
+                    plan_resp.plans
+                        .iter()
+                        .map(|p| p.task.clone())
+                        .collect::<Vec<String>>()
+                        .join("\n"),
+                );
+
                 Ok(Plan {
                     plans: plan_resp.plans,
                     llm: Box::new(llm),
@@ -80,7 +88,10 @@ impl Plan {
                 // set sub answer
                 let answer = Message::new(Role::User, re_act_resp.content);
                 self.llm.push_message(answer.clone());
-                re_act_history.push(answer);
+                re_act_history.push(answer.clone());
+
+                // send reAct answer
+                im::lark::async_send(answer.content);
 
                 if re_act_resp.needs_replan {
                     break;
@@ -94,13 +105,23 @@ impl Plan {
                     let plan_resp: PlanResp = serde_json::from_str(&choice.message.content)?;
 
                     if plan_resp.is_done {
-                        // finish
-                        info!("final answer: {}", plan_resp.content);
+                        // send final answer
+                        im::lark::async_send(plan_resp.content);
                         return Ok(());
                     } else {
                         // update plans
                         self.llm.push_message(choice.message.clone());
                         self.plans = plan_resp.plans;
+
+                        // send replans
+                        im::lark::async_send(
+                            self.plans
+                                .iter()
+                                .map(|p| p.task.clone())
+                                .collect::<Vec<String>>()
+                                .join("\n"),
+                        );
+
                         continue;
                     }
                 }

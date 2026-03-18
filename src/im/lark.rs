@@ -167,3 +167,7 @@ pub async fn send(content: String) -> anyhow::Result<()> {
     info!("Sent response: {}", raw);
     Ok(())
 }
+
+pub fn async_send(content: String) {
+    tokio::spawn(send(content));
+}

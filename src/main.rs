@@ -21,10 +21,6 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer().with_ansi(false).with_writer(non_blocking))
         .init();
 
-    im::lark::send("send test".to_string()).await.expect("sending test error");
-
     // lark wss
     im::lark::build_wss().await.expect("building wss error");
-
-    tokio::signal::ctrl_c().await.expect("signaling error");
 }
