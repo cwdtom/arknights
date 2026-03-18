@@ -118,3 +118,34 @@ impl ReAct {
         Ok(futures::future::join_all(futures).await)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn re_act_resp_full_json() {
+        let json = r#"{"content":"answer","is_done":true,"needs_replan":false}"#;
+        let resp: ReActResp = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.content, "answer");
+        assert!(resp.is_done);
+        assert!(!resp.needs_replan);
+    }
+
+    #[test]
+    fn re_act_resp_defaults_to_false() {
+        let json = r#"{"content":"thinking"}"#;
+        let resp: ReActResp = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.content, "thinking");
+        assert!(!resp.is_done);
+        assert!(!resp.needs_replan);
+    }
+
+    #[test]
+    fn re_act_resp_needs_replan() {
+        let json = r#"{"content":"need to replan","is_done":false,"needs_replan":true}"#;
+        let resp: ReActResp = serde_json::from_str(json).unwrap();
+        assert!(resp.needs_replan);
+        assert!(!resp.is_done);
+    }
+}
