@@ -33,6 +33,7 @@ struct EventEnvelope {
 #[derive(Debug, Deserialize)]
 struct EventHeader {
     event_type: String,
+    create_time: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -72,6 +73,8 @@ pub async fn build_wss() -> anyhow::Result<()> {
 }
 
 async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) {
+    let mut last_ts = Utc::now().timestamp();
+
     while let Some(payload) = payload_rx.recv().await {
         let envelope: EventEnvelope = match serde_json::from_slice(&payload) {
             Ok(v) => v,
@@ -103,6 +106,20 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
         if let Some(tx) = pending {
             let _ = tx.send(text);
             continue;
+        }
+
+        // check process last timestamp, ignore outdate message
+        let cur_ts: i64 = match envelope.header.create_time.parse() {
+            Ok(ts) => ts,
+            Err(err) => {
+                error!("create_time format error: {:?}", err);
+                continue;
+            }
+        };
+        if last_ts > cur_ts {
+            continue;
+        } else {
+            last_ts = cur_ts;
         }
 
         // start plan in a separate task so the payload loop stays free to receive replies
@@ -184,7 +201,7 @@ pub async fn send(content: String) -> anyhow::Result<()> {
         &LARK.lock().await.get_access_token().await?,
         &message_request,
     )
-    .await?;
+        .await?;
 
     info!("Sent response: {}", raw);
     Ok(())
