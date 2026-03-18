@@ -13,6 +13,7 @@ Given the user's question and any previous execution results, produce a structur
 
 ## Available Tools
 - system: System-related operations
+- internet: Internet-related operations
 
 ## Decision Rules
 1. If the question has NOT been fully answered yet:

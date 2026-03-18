@@ -1,6 +1,7 @@
 pub(crate) mod base_tool;
 pub(crate) mod system;
 mod process_control;
+mod internet;
 
 use base_tool::LlmTool;
 use std::collections::HashMap;
@@ -13,12 +14,14 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         let ask_user = process_control::AskUser::new();
         let done = process_control::Done::new();
         let replan = process_control::Replan::new();
+        let search = internet::Search::new();
 
         let mut map: HashMap<String, Box<dyn LlmTool + Send + Sync>> = HashMap::new();
         map.insert(date.base_tool.name.clone(), Box::new(date));
         map.insert(ask_user.base_tool.name.clone(), Box::new(ask_user));
         map.insert(done.base_tool.name.clone(), Box::new(done));
         map.insert(replan.base_tool.name.clone(), Box::new(replan));
+        map.insert(search.base_tool.name.clone(), Box::new(search));
 
         map
     });
