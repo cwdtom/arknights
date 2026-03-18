@@ -1,1 +1,1 @@
-pub(crate) mod lark;
+pub mod lark;

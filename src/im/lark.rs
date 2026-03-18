@@ -1,17 +1,50 @@
-use crate::agent;
+use crate::{agent, util};
+use chrono::{Utc};
 use open_lark::openlark_client;
 use openlark_client::ws_client::{EventDispatcherHandler, LarkWsClient};
 use serde::Deserialize;
+use serde_json::json;
 use std::sync::{Arc, LazyLock};
-use std::time::Duration;
+use std::time::{Duration};
 use tokio::sync::mpsc;
 use tracing::{error, info};
 
 const BASE_URL: &str = "https://open.feishu.cn";
+const SEND_URL: &str = "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id";
+const TOKEN_URL: &str = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
 static LARK_APP_ID: LazyLock<String> =
     LazyLock::new(|| std::env::var("LARK_APP_ID").expect("LARK_APP_ID not set"));
 static LARK_APP_SECRET: LazyLock<String> =
     LazyLock::new(|| std::env::var("LARK_APP_SECRET").expect("LARK_APP_SECRET not set"));
+static LARK_USER_OPEN_ID: LazyLock<String> =
+    LazyLock::new(|| std::env::var("LARK_USER_OPEN_ID").expect("LARK_USER_OPEN_ID not set"));
+
+#[derive(Debug, Deserialize)]
+struct EventEnvelope {
+    header: EventHeader,
+    event: EventBody,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventHeader {
+    event_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventBody {
+    message: Message,
+}
+
+#[derive(Debug, Deserialize)]
+struct Message {
+    message_type: String,
+    content: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TextContent {
+    text: String,
+}
 
 pub async fn build_wss() -> anyhow::Result<()> {
     let ws_config = openlark_client::Config::builder()
@@ -40,7 +73,7 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
             Ok(v) => v,
             Err(err) => {
                 error!("payload format error: {:?}", err);
-                return;
+                continue;
             }
         };
 
@@ -48,7 +81,7 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
             || envelope.event.message.message_type != "text"
         {
             error!("cant process payload");
-            return;
+            continue;
         }
 
         let content_json: TextContent = serde_json::from_str(&envelope.event.message.content)
@@ -56,7 +89,7 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
         let text = content_json.text;
         if text.trim().is_empty() {
             error!("text is empty");
-            return;
+            continue;
         }
 
         info!("received message: {}", text);
@@ -66,29 +99,71 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct EventEnvelope {
-    header: EventHeader,
-    event: EventBody,
+static LARK: LazyLock<tokio::sync::Mutex<Lark>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(Lark::new()));
+
+struct Lark {
+    access_token: String,
+    // timestamp
+    update_time: i64,
 }
 
-#[derive(Debug, Deserialize)]
-struct EventHeader {
-    event_type: String,
+#[derive(Deserialize, Debug)]
+struct AccessTokenResp {
+    tenant_access_token: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct EventBody {
-    message: Message,
+impl Lark {
+    fn new() -> Self {
+        Lark {
+            access_token: "".to_string(),
+            update_time: 0,
+        }
+    }
+
+    async fn get_access_token(&mut self) -> anyhow::Result<String> {
+        // 1 hour expire
+        if self.update_time + 3600 > Utc::now().timestamp() {
+            return Ok(self.access_token.clone());
+        }
+
+        let body = json!({
+            "app_id": LARK_APP_ID.clone(),
+            "app_secret": LARK_APP_SECRET.clone(),
+        });
+        let raw = util::http_utils::post(TOKEN_URL, "", &body).await?;
+        let resp: AccessTokenResp = serde_json::from_str(&raw)?;
+
+        self.access_token = resp.tenant_access_token;
+        self.update_time = Utc::now().timestamp();
+
+        Ok(self.access_token.clone())
+    }
 }
 
-#[derive(Debug, Deserialize)]
-struct Message {
-    message_type: String,
-    content: String,
-}
+pub async fn send(content: String) -> anyhow::Result<()> {
+    // build content
+    let message_content = json!({
+        "text": content,
+    });
 
-#[derive(Debug, Deserialize)]
-struct TextContent {
-    text: String,
+    // build message req
+    let message_request = json!({
+        "receive_id": LARK_USER_OPEN_ID.clone(),
+        "content": message_content.to_string(),
+        "msg_type": "text"
+    });
+
+    info!("Sending request: {:?}", message_request);
+
+    // send
+    let raw = util::http_utils::post(
+        SEND_URL,
+        &LARK.lock().await.get_access_token().await?,
+        &message_request,
+    )
+    .await?;
+
+    info!("Sent response: {}", raw);
+    Ok(())
 }

@@ -15,10 +15,10 @@ pub async fn post<T: Serialize + ?Sized>(
     let raw = request
         .timeout(Duration::from_secs(60))
         .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
         .json(body)
         .send()
         .await?
-        .error_for_status()?
         .text()
         .await?;
 
