@@ -23,4 +23,6 @@ async fn main() {
 
     // lark wss
     im::lark::build_wss().await.expect("building wss error");
+
+    tokio::signal::ctrl_c().await.expect("signaling error");
 }

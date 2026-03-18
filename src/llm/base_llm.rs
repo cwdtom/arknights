@@ -37,6 +37,14 @@ pub enum Role {
     Tool,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ToolResult {
+    pub tool_call_id: Option<String>,
+    pub content: String,
+    pub done: bool,
+    pub replan: bool,
+}
+
 #[derive(Serialize, Debug)]
 pub struct Tool {
     pub r#type: String,

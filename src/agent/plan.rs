@@ -5,15 +5,42 @@ use anyhow::anyhow;
 use serde::Deserialize;
 
 const MAX_TURNS: u8 = 20;
-const PLAN_PROMPT: &str = "You are the \"PLAN\" node in the Plan-ReAct-Replan process, \
-formulate an appropriate execution plan with tool to answer the user's question. \
-When it is confirmed that the question has been fully answered, set is_done to true. \
-When unable to provide an answer, reformulate the plan. \
-You have these tools(no need to actually call it, just reflect it in the plan) available for use: \
-- system: System-related tools \
-Response format MUST follow this JSON format: \
-{\"plans\": [{\"task\": \"subTaskA\", \"tools\": [\"system\"]},{\"task\": \"subTaskB\", \"tools\": []}], \
-\"content\": \"final answer\",\"is_done\": false}";
+const PLAN_PROMPT: &str = r#"
+You are the PLAN or REPLAN node in a Plan-ReAct-Replan pipeline.
+
+## Role
+Given the user's question and any previous execution results, produce a structured plan that guides downstream ReAct nodes to find the answer.
+
+## Available Tools
+- system: System-related operations
+
+## Decision Rules
+1. If the question has NOT been fully answered yet:
+   - Decompose it into ordered subtasks.
+   - Assign relevant tools to each subtask.
+   - Set `is_done` to false and leave `content` empty.
+
+2. If the question HAS been fully answered:
+   - Set `is_done` to true.
+   - Write the final answer in `content`.
+
+3. If the current plan failed or is insufficient:
+   - Reformulate a new plan with alternative subtasks and tools.
+   - Set `is_done` to false and leave `content` empty.
+
+## Language Rule
+`content` and every `task` field must be written in the same language as the user's message.
+
+## Output Format Json
+{
+  "plans": [
+    {"task": "<subtask description>", "tools": ["system"]},
+    {"task": "<subtask description>", "tools": []}
+  ],
+  "content": "",
+  "is_done": false
+}
+"#;
 
 /// agent plan module
 pub struct Plan {
@@ -83,7 +110,7 @@ impl Plan {
                 re_act_history.push(sub_message);
 
                 // init reAct
-                let mut re_act = ReAct::new(re_act_history.clone(), plan.tools.clone());
+                let mut re_act = ReAct::new(re_act_history.clone(), plan.tools.clone())?;
                 let re_act_resp = re_act.execute().await?;
                 // set sub answer
                 let answer = Message::new(Role::User, re_act_resp.content);
@@ -91,7 +118,7 @@ impl Plan {
                 re_act_history.push(answer.clone());
 
                 // send reAct answer
-                im::lark::async_send(answer.content);
+                im::lark::async_send(plan.task.clone() + " Done");
 
                 if re_act_resp.needs_replan {
                     break;
@@ -112,15 +139,6 @@ impl Plan {
                         // update plans
                         self.llm.push_message(choice.message.clone());
                         self.plans = plan_resp.plans;
-
-                        // send replans
-                        im::lark::async_send(
-                            self.plans
-                                .iter()
-                                .map(|p| p.task.clone())
-                                .collect::<Vec<String>>()
-                                .join("\n"),
-                        );
 
                         continue;
                     }

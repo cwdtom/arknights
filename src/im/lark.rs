@@ -6,8 +6,13 @@ use serde::Deserialize;
 use serde_json::json;
 use std::sync::{Arc, LazyLock};
 use std::time::{Duration};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info};
+
+static PENDING_ASK: LazyLock<tokio::sync::Mutex<Option<oneshot::Sender<String>>>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(None));
+static PLAN_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 const BASE_URL: &str = "https://open.feishu.cn";
 const SEND_URL: &str = "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id";
@@ -62,7 +67,6 @@ pub async fn build_wss() -> anyhow::Result<()> {
         .build();
 
     LarkWsClient::open(Arc::new(ws_config), event_handler).await?;
-    info!("Built lark wss");
 
     Ok(())
 }
@@ -94,8 +98,26 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
 
         info!("received message: {}", text);
 
-        let mut plan = agent::plan::Plan::new(text).await.expect("plan init error");
-        plan.execute().await.expect("plan execution error");
+        // if there is a pending ask_user, route the reply to it
+        let pending = PENDING_ASK.lock().await.take();
+        if let Some(tx) = pending {
+            let _ = tx.send(text);
+            continue;
+        }
+
+        // start plan in a separate task so the payload loop stays free to receive replies
+        // PLAN_LOCK ensures only one plan runs at a time
+        tokio::spawn(async move {
+            let _guard = PLAN_LOCK.lock().await;
+            match agent::plan::Plan::new(text).await {
+                Ok(mut plan) => {
+                    if let Err(e) = plan.execute().await {
+                        error!("plan execution error: {:?}", e);
+                    }
+                }
+                Err(e) => error!("plan init error: {:?}", e),
+            }
+        });
     }
 }
 
@@ -170,6 +192,26 @@ pub async fn send(content: String) -> anyhow::Result<()> {
 
 pub fn async_send(content: String) {
     tokio::spawn(send(content));
+}
+
+/// Send a question to the user via lark and wait for their reply (5 min timeout).
+pub async fn ask_user(question: String) -> anyhow::Result<String> {
+    let (tx, rx) = oneshot::channel::<String>();
+    PENDING_ASK.lock().await.replace(tx);
+
+    send(question).await?;
+
+    match tokio::time::timeout(Duration::from_secs(300), rx).await {
+        Ok(Ok(reply)) => Ok(reply),
+        Ok(Err(_)) => {
+            anyhow::bail!("ask_user channel closed unexpectedly")
+        }
+        Err(_) => {
+            // timeout — clean up the pending sender
+            PENDING_ASK.lock().await.take();
+            anyhow::bail!("ask_user timed out: no reply within 5 minutes")
+        }
+    }
 }
 
 #[cfg(test)]

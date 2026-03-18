@@ -14,17 +14,25 @@ pub struct DeepSeek {
 
 impl DeepSeek {
     pub fn new(messages: Vec<Message>, tools: Vec<Tool>) -> Self {
+        // needs call tool
+        let mut tool_choice = "required";
+        let mut resp_format = "text";
+        if tools.is_empty() {
+            tool_choice = "none";
+            resp_format = "json_object";
+        }
+
         let llm = Llm {
             model: "deepseek-chat".to_string(),
             messages,
             stream: false,
             max_tokens: 8192,
             response_format: ResponseFormat {
-                r#type: "json_object".to_string(),
+                r#type: resp_format.to_string(),
             },
             temperature: 1.0,
             tools,
-            tool_choice: "auto".to_string(),
+            tool_choice: tool_choice.to_string(),
         };
 
         Self { llm }

@@ -1,16 +1,19 @@
 use crate::llm;
-use crate::llm::base_llm::{Choice, ToolCall};
+use crate::llm::base_llm::{Choice, ToolCall, ToolResult};
 use crate::llm::{ChatResponse, LlmProvider, Message, Role, Tool};
 use crate::tool;
 use anyhow::anyhow;
 use serde::Deserialize;
 
 const MAX_TURNS: u8 = 20;
-const THINK_PROMPT: &str = "You are the \"think\" node in the ReAct process, \
-using appropriate tools to solve problems. \
-When it is confirmed that the question has been fully answered, set is_done to true. \
-If it is determined that the task needs to be re-planned, set needs_replan to true. \
-Response format MUST follow this JSON format: {\"content\":\"response\", \"is_done\": false, \"needs_replan\": false}";
+const THINK_PROMPT: &str = r#"
+You are the "think" node in a ReAct loop.
+Primary rule:
+- Using appropriate tools to solve problems.
+
+Output contract:
+- Keep the tool args language as same as the user's message.
+"#;
 
 /// reAct resp format
 #[derive(Deserialize, Debug)]
@@ -28,18 +31,21 @@ pub struct ReAct {
 }
 
 impl ReAct {
-    pub fn new(mut messages: Vec<Message>, tools_group: Vec<String>) -> Self {
+    pub fn new(mut messages: Vec<Message>, mut tools_group: Vec<String>) -> anyhow::Result<Self> {
         // system message
         let system: Message = Message::new(Role::System, THINK_PROMPT.to_string());
         messages.insert(0, system);
 
-        let tools = tools_group.iter()
+        // default add process control
+        tools_group.push("process_control".to_string());
+
+        let tools: Vec<Tool> = tools_group.iter()
             .flat_map(|t| tool::get_tool_by_group(t))
             .map(|t| Tool::new(t.deep_seek_schema()))
             .collect();
 
         let llm = llm::deep_seek::DeepSeek::new(messages, tools);
-        ReAct { llm: Box::new(llm) }
+        Ok(ReAct { llm: Box::new(llm) })
     }
 
     pub async fn execute(&mut self) -> anyhow::Result<ReActResp> {
@@ -66,23 +72,40 @@ impl ReAct {
                     // set tool call
                     self.llm.push_message(assistant_message);
 
-                    // OBSERVE
-                    let tools = self.act(calls).await?;
-                    self.llm.extend_messages(tools);
-                }
-                None => {
-                    // set text resp to messages
-                    let re_act_resp: ReActResp = serde_json::from_str(&content)?;
+                    let tool_results = self.act(calls).await?;
 
-                    // reAct done or needs replan
-                    if re_act_resp.is_done || re_act_resp.needs_replan {
-                        return Ok(re_act_resp);
-                    }
+                    // check last tool call done or replan
+                    match tool_results.last() {
+                        Some(r) => {
+                            // check done or replan
+                            if r.replan || r.done {
+                                return Ok(ReActResp {
+                                    content: r.content.to_string(),
+                                    is_done: r.done,
+                                    needs_replan: r.replan,
+                                })
+                            }
+                        }
+                        None => {
+                            return Ok(ReActResp {
+                                content: "".to_string(),
+                                is_done: false,
+                                needs_replan: true,
+                            })
+                        }
+                    };
 
+                    let messages = tool_results.iter()
+                        .map(|r| Message {
+                            role: Role::Tool,
+                            tool_call_id: r.tool_call_id.clone(),
+                            content: r.content.clone(),
+                            tool_calls: None,
+                        }).collect::<Vec<Message>>();
                     // OBSERVE
-                    let assistant = Message::new(Role::Assistant, re_act_resp.content);
-                    self.llm.push_message(assistant);
+                    self.llm.extend_messages(messages);
                 }
+                None => return Err(anyhow!("call tool error"))
             }
         }
 
@@ -98,7 +121,7 @@ impl ReAct {
         }
     }
 
-    async fn act(&mut self, calls: Vec<ToolCall>) -> anyhow::Result<Vec<Message>> {
+    async fn act(&mut self, calls: Vec<ToolCall>) -> anyhow::Result<Vec<ToolResult>> {
         let futures: Vec<_> = calls
             .into_iter()
             .map(|call| async move {
@@ -106,11 +129,11 @@ impl ReAct {
                     Some(t) => t.deep_seek_call(&call).await.to_string(),
                     None => "tool not found".to_string(),
                 };
-                Message {
-                    role: Role::Tool,
+                ToolResult {
                     tool_call_id: Some(call.id),
                     content,
-                    tool_calls: None,
+                    replan: call.function.name == "process_control_replan",
+                    done: call.function.name == "process_control_done",
                 }
             })
             .collect();
