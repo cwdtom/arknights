@@ -24,3 +24,16 @@ pub async fn post<T: Serialize + ?Sized>(
 
     Ok(raw)
 }
+
+pub async fn get(url: &str) -> anyhow::Result<String> {
+    let request = CLIENT.get(url);
+
+    let raw = request
+        .timeout(Duration::from_secs(60))
+        .send()
+        .await?
+        .text()
+        .await?;
+
+    Ok(raw)
+}

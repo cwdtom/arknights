@@ -29,6 +29,8 @@ Given the user's question and any previous execution results, produce a structur
    - Reformulate a new plan with alternative subtasks and tools.
    - Set `is_done` to false and leave `content` empty.
 
+4. Each subtask MUST contain the necessary information and be able to be completed independently.
+
 ## Language Rule
 `content` and every `task` field must be written in the same language as the user's message.
 

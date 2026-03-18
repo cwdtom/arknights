@@ -1,8 +1,8 @@
-use std::sync::LazyLock;
-use crate::{llm, util};
 use crate::llm::base_llm::{Parameters, ToolCall};
 use crate::tool::base_tool::{BaseTool, LlmTool};
+use crate::{llm, util};
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 use tracing::error;
 
 const GROUP_NAME: &str = "internet";
@@ -103,5 +103,68 @@ impl Search {
         };
 
         Search { base_tool }
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct Curl {
+    pub base_tool: BaseTool,
+}
+
+#[derive(Deserialize)]
+struct CurlArgs {
+    url: String,
+}
+
+#[async_trait::async_trait]
+impl LlmTool for Curl {
+    fn group_name(&self) -> &str {
+        &self.base_tool.group_name
+    }
+
+    fn deep_seek_schema(&self) -> llm::base_llm::Function {
+        llm::base_llm::Function {
+            name: self.base_tool.name.clone(),
+            description: self.base_tool.description.clone(),
+            parameters: Parameters::new(
+                serde_json::json!({
+                    "url": {
+                            "type": "string",
+                            "description": "web url"
+                        }
+                }),
+                vec!["url".to_string()],
+            ),
+        }
+    }
+
+    async fn deep_seek_call(&self, tool_call: &ToolCall) -> String {
+        let args: CurlArgs = match serde_json::from_str(&tool_call.function.arguments) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("failed to parse curl arguments: {:?}", e);
+                return format!("Error: invalid arguments: {}", e);
+            }
+        };
+
+        let raw = util::http_utils::get(&args.url).await;
+
+        raw.unwrap_or_else(|e| {
+            error!("failed to search web: {:?}", e);
+            format!("Error: search web: {}", e)
+        })
+    }
+}
+
+impl Curl {
+    pub fn new() -> Self {
+        let base_tool = BaseTool {
+            group_name: GROUP_NAME.to_string(),
+            group_description: GROUP_DESC.to_string(),
+            name: GROUP_NAME.to_string() + "_curl",
+            description: "Curl url.".to_string(),
+        };
+
+        Curl { base_tool }
     }
 }
