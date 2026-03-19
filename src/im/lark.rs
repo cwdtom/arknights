@@ -1,18 +1,17 @@
 use crate::{agent, util};
-use chrono::{Utc};
+use chrono::Utc;
 use open_lark::openlark_client;
 use openlark_client::ws_client::{EventDispatcherHandler, LarkWsClient};
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::{Arc, LazyLock};
-use std::time::{Duration};
+use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info};
 
 static PENDING_ASK: LazyLock<tokio::sync::Mutex<Option<oneshot::Sender<String>>>> =
     LazyLock::new(|| tokio::sync::Mutex::new(None));
-static PLAN_LOCK: LazyLock<tokio::sync::Mutex<()>> =
-    LazyLock::new(|| tokio::sync::Mutex::new(()));
+static PLAN_LOCK: LazyLock<tokio::sync::Mutex<()>> = LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 const BASE_URL: &str = "https://open.feishu.cn";
 const SEND_URL: &str = "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id";
@@ -45,6 +44,7 @@ struct EventBody {
 struct Message {
     message_type: String,
     content: String,
+    message_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -100,6 +100,8 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
         }
 
         info!("received message: {}", text);
+        // replay get
+        async_reply_emoji(envelope.event.message.message_id.clone(), "Get".to_string());
 
         // if there is a pending ask_user, route the reply to it
         let pending = PENDING_ASK.lock().await.take();
@@ -134,6 +136,9 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
                 }
                 Err(e) => error!("plan init error: {:?}", e),
             }
+
+            // replay done
+            async_reply_emoji(envelope.event.message.message_id, "DONE".to_string());
         });
     }
 }
@@ -201,7 +206,7 @@ pub async fn send(content: String) -> anyhow::Result<()> {
         &LARK.lock().await.get_access_token().await?,
         &message_request,
     )
-        .await?;
+    .await?;
 
     info!("Sent response: {}", raw);
     Ok(())
@@ -229,6 +234,35 @@ pub async fn ask_user(question: String) -> anyhow::Result<String> {
             anyhow::bail!("ask_user timed out: no reply within 5 minutes")
         }
     }
+}
+
+pub async fn reply_emoji(message_id: String, emoji: String) -> anyhow::Result<()> {
+    let base_url = format!(
+        "https://open.feishu.cn/open-apis/im/v1/messages/{}/reactions",
+        message_id
+    );
+    let body = json!({
+        "reaction_type": {
+          "emoji_type": emoji
+        }
+    });
+
+    info!("Reply emoji request: {:?}", body);
+
+    // send
+    let raw = util::http_utils::post(
+        base_url.as_str(),
+        &LARK.lock().await.get_access_token().await?,
+        &body,
+    )
+    .await?;
+
+    info!("Reply emoji response: {}", raw);
+    Ok(())
+}
+
+pub fn async_reply_emoji(message_id: String, emoji: String) {
+    tokio::spawn(reply_emoji(message_id, emoji));
 }
 
 #[cfg(test)]
