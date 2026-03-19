@@ -3,6 +3,8 @@ use anyhow::Context;
 use chrono::Utc;
 use rusqlite::{Row, params};
 use std::path::{Path, PathBuf};
+use serde::Serialize;
+
 const CREATE_TABLE_SQL: &str = r#"
 create table if not exists chat_history
 (
@@ -14,7 +16,7 @@ create table if not exists chat_history
 );
 "#;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChatHistory {
     pub id: i64,
     pub user_content: String,

@@ -1,9 +1,11 @@
 use anyhow::{Context, anyhow};
+use rusqlite::trace::{TraceEvent, TraceEventCodes};
 use rusqlite::Connection;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::task;
+use tracing::info;
 
 const DB_PATH_ENV_VAR: &str = "ARKNIGHTS_DB_PATH";
 const DEFAULT_DB_PATH: &str = "arknights.db";
@@ -116,8 +118,21 @@ fn is_special_db_path(db_path: &Path) -> bool {
 }
 
 fn open_connection(db_path: &Path) -> anyhow::Result<Connection> {
-    Connection::open(db_path)
-        .with_context(|| format!("open sqlite db failed: {}", db_path.to_string_lossy()))
+    let conn = Connection::open(db_path)
+        .with_context(|| format!("open sqlite db failed: {}", db_path.to_string_lossy()))?;
+    conn.trace_v2(TraceEventCodes::SQLITE_TRACE_STMT, Some(log_sql_trace));
+    Ok(conn)
+}
+
+fn log_sql_trace(event: TraceEvent<'_>) {
+    if let TraceEvent::Stmt(stmt, sql) = event {
+        let expanded_sql = stmt.expanded_sql().unwrap_or_else(|| sql.to_string());
+        info!("sqlite execute: {}", compact_sql_for_log(&expanded_sql));
+    }
+}
+
+fn compact_sql_for_log(sql: &str) -> String {
+    sql.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]
@@ -218,5 +233,14 @@ mod tests {
                 std::env::remove_var(DB_PATH_ENV_VAR);
             },
         }
+    }
+
+    #[test]
+    fn compact_sql_for_log_removes_extra_whitespace() {
+        let sql = "select id,\n       user_content\n  from chat_history\n where id = 1";
+        assert_eq!(
+            compact_sql_for_log(sql),
+            "select id, user_content from chat_history where id = 1"
+        );
     }
 }

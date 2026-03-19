@@ -32,3 +32,20 @@ pub async fn build_chat_history_messages(limit: usize) -> anyhow::Result<Vec<Mes
 
     Ok(messages)
 }
+
+pub async fn fuzz_query(keywords: Vec<String>) -> anyhow::Result<String> {
+    let dao = chat_history_dao()?;
+
+    let mut histories = vec![];
+    for k in keywords {
+        let arr = dao.fuzzy_query(k.as_str(), 5, 0).await?;
+        for a in arr {
+            match serde_json::to_string(&a) {
+                Ok(json) => histories.push(json),
+                Err(_err) => continue,
+            }
+        }
+    }
+
+    Ok(histories.join("\n"))
+}

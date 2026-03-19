@@ -40,6 +40,7 @@ impl ReAct {
         // default add process control and system
         tools_group.insert("system".to_string());
         tools_group.insert("process_control".to_string());
+        tools_group.insert("memory".to_string());
 
         let tools: Vec<Tool> = tools_group
             .iter()
