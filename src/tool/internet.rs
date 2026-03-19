@@ -74,13 +74,9 @@ impl LlmTool for Search {
             }
         };
 
-        let mut freshness = None;
-        if args.start_date.is_some() && args.end_date.is_some() {
-            freshness = Some(args.start_date.unwrap() + ".." + &args.end_date.unwrap());
-        }
         let body = SearchBody {
             query: args.keyword.to_string(),
-            freshness,
+            freshness: build_freshness(args.start_date.as_deref(), args.end_date.as_deref()),
             summary: true,
         };
 
@@ -103,6 +99,13 @@ impl Search {
         };
 
         Search { base_tool }
+    }
+}
+
+fn build_freshness(start_date: Option<&str>, end_date: Option<&str>) -> Option<String> {
+    match (start_date, end_date) {
+        (Some(start_date), Some(end_date)) => Some(format!("{start_date}..{end_date}")),
+        _ => None,
     }
 }
 
@@ -166,5 +169,80 @@ impl Curl {
         };
 
         Curl { base_tool }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::llm::base_llm::{FunctionCall, ToolCall};
+
+    #[test]
+    fn search_tool_schema_has_keyword_and_date_fields() {
+        let tool = Search::new();
+        let schema = tool.deep_seek_schema();
+
+        assert_eq!(schema.name, "internet_search");
+        assert_eq!(schema.description, "Search internet by keyword.");
+        assert_eq!(schema.parameters.required, vec!["keyword".to_string()]);
+        assert!(schema.parameters.properties["keyword"].is_object());
+        assert!(schema.parameters.properties["start_date"].is_object());
+        assert!(schema.parameters.properties["end_date"].is_object());
+    }
+
+    #[tokio::test]
+    async fn search_tool_returns_parse_error_for_invalid_arguments() {
+        let tool = Search::new();
+        let tool_call = ToolCall {
+            id: "call_search".to_string(),
+            r#type: "function".to_string(),
+            function: FunctionCall {
+                name: "internet_search".to_string(),
+                arguments: "{".to_string(),
+            },
+        };
+
+        let result = tool.deep_seek_call(&tool_call).await;
+        assert!(result.starts_with("Error: invalid arguments:"));
+    }
+
+    #[test]
+    fn curl_tool_schema_has_url_field() {
+        let tool = Curl::new();
+        let schema = tool.deep_seek_schema();
+
+        assert_eq!(schema.name, "internet_curl");
+        assert_eq!(schema.description, "Curl url.");
+        assert_eq!(schema.parameters.required, vec!["url".to_string()]);
+        assert!(schema.parameters.properties["url"].is_object());
+    }
+
+    #[tokio::test]
+    async fn curl_tool_returns_parse_error_for_invalid_arguments() {
+        let tool = Curl::new();
+        let tool_call = ToolCall {
+            id: "call_curl".to_string(),
+            r#type: "function".to_string(),
+            function: FunctionCall {
+                name: "internet_curl".to_string(),
+                arguments: "{".to_string(),
+            },
+        };
+
+        let result = tool.deep_seek_call(&tool_call).await;
+        assert!(result.starts_with("Error: invalid arguments:"));
+    }
+
+    #[test]
+    fn build_freshness_returns_range_when_both_dates_exist() {
+        let freshness = build_freshness(Some("2026-03-01"), Some("2026-03-19"));
+        assert_eq!(freshness, Some("2026-03-01..2026-03-19".to_string()));
+    }
+
+    #[test]
+    fn build_freshness_returns_none_when_date_is_missing() {
+        assert_eq!(build_freshness(Some("2026-03-01"), None), None);
+        assert_eq!(build_freshness(None, Some("2026-03-19")), None);
+        assert_eq!(build_freshness(None, None), None);
     }
 }

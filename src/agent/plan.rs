@@ -153,3 +153,40 @@ impl Plan {
         Err(anyhow!("plan exceeded max turns ({MAX_TURNS})"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plan_resp_defaults_is_done_to_false() {
+        let json = r#"{
+            "plans": [{"task":"collect context","tools":["system","internet"]}],
+            "content": ""
+        }"#;
+
+        let resp: PlanResp = serde_json::from_str(json).unwrap();
+        assert!(!resp.is_done);
+        assert_eq!(resp.content, "");
+        assert_eq!(resp.plans.len(), 1);
+        assert_eq!(resp.plans[0].task, "collect context");
+        assert_eq!(
+            resp.plans[0].tools,
+            vec!["system".to_string(), "internet".to_string()]
+        );
+    }
+
+    #[test]
+    fn plan_resp_accepts_done_payload() {
+        let json = r#"{
+            "plans": [],
+            "content": "final answer",
+            "is_done": true
+        }"#;
+
+        let resp: PlanResp = serde_json::from_str(json).unwrap();
+        assert!(resp.is_done);
+        assert_eq!(resp.content, "final answer");
+        assert!(resp.plans.is_empty());
+    }
+}

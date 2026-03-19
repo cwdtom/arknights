@@ -83,7 +83,7 @@ impl ReAct {
                                     content: r.content.to_string(),
                                     is_done: r.done,
                                     needs_replan: r.replan,
-                                })
+                                });
                             }
                         }
                         None => {
@@ -91,7 +91,7 @@ impl ReAct {
                                 content: "".to_string(),
                                 is_done: false,
                                 needs_replan: true,
-                            })
+                            });
                         }
                     };
 
@@ -105,7 +105,7 @@ impl ReAct {
                     // OBSERVE
                     self.llm.extend_messages(messages);
                 }
-                None => return Err(anyhow!("call tool error"))
+                None => return Err(anyhow!("call tool error")),
             }
         }
 
@@ -145,6 +145,7 @@ impl ReAct {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::base_llm::FunctionCall;
 
     #[test]
     fn re_act_resp_full_json() {
@@ -170,5 +171,65 @@ mod tests {
         let resp: ReActResp = serde_json::from_str(json).unwrap();
         assert!(resp.needs_replan);
         assert!(!resp.is_done);
+    }
+
+    #[tokio::test]
+    async fn act_marks_done_for_done_tool() {
+        let mut react =
+            ReAct::new(vec![Message::new(Role::User, "task".to_string())], vec![]).unwrap();
+        let tool_call = ToolCall {
+            id: "call_done".to_string(),
+            r#type: "function".to_string(),
+            function: FunctionCall {
+                name: "process_control_done".to_string(),
+                arguments: r#"{"answer":"task finished"}"#.to_string(),
+            },
+        };
+
+        let results = react.act(vec![tool_call]).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].content, "task finished");
+        assert!(results[0].done);
+        assert!(!results[0].replan);
+    }
+
+    #[tokio::test]
+    async fn act_marks_replan_for_replan_tool() {
+        let mut react =
+            ReAct::new(vec![Message::new(Role::User, "task".to_string())], vec![]).unwrap();
+        let tool_call = ToolCall {
+            id: "call_replan".to_string(),
+            r#type: "function".to_string(),
+            function: FunctionCall {
+                name: "process_control_replan".to_string(),
+                arguments: r#"{"reason":"need another path"}"#.to_string(),
+            },
+        };
+
+        let results = react.act(vec![tool_call]).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].content, "need another path");
+        assert!(!results[0].done);
+        assert!(results[0].replan);
+    }
+
+    #[tokio::test]
+    async fn act_returns_tool_not_found_for_unknown_tool() {
+        let mut react =
+            ReAct::new(vec![Message::new(Role::User, "task".to_string())], vec![]).unwrap();
+        let tool_call = ToolCall {
+            id: "call_unknown".to_string(),
+            r#type: "function".to_string(),
+            function: FunctionCall {
+                name: "missing_tool".to_string(),
+                arguments: "{}".to_string(),
+            },
+        };
+
+        let results = react.act(vec![tool_call]).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].content, "tool not found");
+        assert!(!results[0].done);
+        assert!(!results[0].replan);
     }
 }

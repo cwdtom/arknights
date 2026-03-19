@@ -109,7 +109,7 @@ impl LlmTool for Done {
                 return format!("Error: invalid arguments: {}", e);
             }
         };
-        
+
         args.answer
     }
 }
@@ -188,12 +188,13 @@ impl Replan {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::base_llm::{FunctionCall, ToolCall};
 
     #[test]
     fn ask_user_tool_schema_has_question_param() {
         let tool = AskUser::new();
         let schema = tool.deep_seek_schema();
-        assert_eq!(schema.name, "ask_user");
+        assert_eq!(schema.name, "process_control_ask_user");
         assert!(schema.parameters.required.contains(&"question".to_string()));
         assert!(schema.parameters.properties["question"].is_object());
     }
@@ -201,6 +202,54 @@ mod tests {
     #[test]
     fn ask_user_tool_group_name() {
         let tool = AskUser::new();
-        assert_eq!(tool.group_name(), "ask_user");
+        assert_eq!(tool.group_name(), "process_control");
+    }
+
+    #[tokio::test]
+    async fn done_tool_returns_answer() {
+        let tool = Done::new();
+        let tool_call = ToolCall {
+            id: "call_done".to_string(),
+            r#type: "function".to_string(),
+            function: FunctionCall {
+                name: "process_control_done".to_string(),
+                arguments: r#"{"answer":"all done"}"#.to_string(),
+            },
+        };
+
+        let answer = tool.deep_seek_call(&tool_call).await;
+        assert_eq!(answer, "all done");
+    }
+
+    #[tokio::test]
+    async fn replan_tool_returns_reason() {
+        let tool = Replan::new();
+        let tool_call = ToolCall {
+            id: "call_replan".to_string(),
+            r#type: "function".to_string(),
+            function: FunctionCall {
+                name: "process_control_replan".to_string(),
+                arguments: r#"{"reason":"need more context"}"#.to_string(),
+            },
+        };
+
+        let reason = tool.deep_seek_call(&tool_call).await;
+        assert_eq!(reason, "need more context");
+    }
+
+    #[tokio::test]
+    async fn done_tool_returns_parse_error_for_invalid_json() {
+        let tool = Done::new();
+        let tool_call = ToolCall {
+            id: "call_done".to_string(),
+            r#type: "function".to_string(),
+            function: FunctionCall {
+                name: "process_control_done".to_string(),
+                arguments: "{".to_string(),
+            },
+        };
+
+        let result = tool.deep_seek_call(&tool_call).await;
+        assert!(result.starts_with("Error: invalid arguments:"));
     }
 }
