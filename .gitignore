@@ -9,6 +9,10 @@
 .claude
 CLAUDE.md
 
+# codex
+.codex
+AGENTS.md
+
 # ide
 .idea
 .vscode

@@ -20,7 +20,6 @@ async fn main() {
 
     tracing_subscriber::registry()
         .with(EnvFilter::new("info"))
-        .with(tracing_subscriber::fmt::layer())
         .with(tracing_subscriber::fmt::layer().with_timer(timer.clone()))
         .with(
             tracing_subscriber::fmt::layer()
