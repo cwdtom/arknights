@@ -3,6 +3,8 @@ use crate::llm::{LlmProvider, Message, Role};
 use crate::{im, llm, memory};
 use anyhow::anyhow;
 use serde::Deserialize;
+use std::collections::HashSet;
+use tracing::error;
 
 const MAX_TURNS: u8 = 20;
 const PLAN_PROMPT: &str = r#"
@@ -36,7 +38,7 @@ Given the user's question and any previous execution results, produce a structur
 ## Output Format Json
 {
   "plans": [
-    {"task": "<subtask description>", "tools": ["system"]},
+    {"task": "<subtask description>", "tools": ["internet"]},
     {"task": "<subtask description>", "tools": []}
   ],
   "content": "",
@@ -62,7 +64,7 @@ pub struct PlanResp {
 #[derive(Deserialize, Debug)]
 pub struct Task {
     task: String,
-    tools: Vec<String>,
+    tools: HashSet<String>,
 }
 
 impl Plan {
@@ -140,15 +142,20 @@ impl Plan {
 
                     if plan_resp.is_done {
                         // save chat history
-                        return match memory::chat_history_service::save_chat_history(self.content.as_str(), plan_resp.content.as_str()).await {
-                            Ok(_) => {
-                                // send final answer
-                                im::lark::async_send(plan_resp.content);
-
-                                Ok(())
-                            },
-                            Err(err) => Err(anyhow!("save chat history error: {err:#}")),
+                        match memory::chat_history_service::save_chat_history(
+                            self.content.as_str(),
+                            plan_resp.content.as_str(),
+                        )
+                        .await
+                        {
+                            Ok(_) => {}
+                            Err(err) => error!("Failed to save chat history: {}", err),
                         }
+
+                        // send final answer
+                        im::lark::async_send(plan_resp.content);
+
+                        return Ok(());
                     } else {
                         // update plans
                         self.llm.push_message(choice.message.clone());
@@ -172,7 +179,7 @@ mod tests {
     #[test]
     fn plan_resp_defaults_is_done_to_false() {
         let json = r#"{
-            "plans": [{"task":"collect context","tools":["system","internet"]}],
+            "plans": [{"task":"collect context","tools":["internet"]}],
             "content": ""
         }"#;
 
@@ -181,10 +188,9 @@ mod tests {
         assert_eq!(resp.content, "");
         assert_eq!(resp.plans.len(), 1);
         assert_eq!(resp.plans[0].task, "collect context");
-        assert_eq!(
-            resp.plans[0].tools,
-            vec!["system".to_string(), "internet".to_string()]
-        );
+        let mut tools = HashSet::new();
+        tools.insert(String::from("internet"));
+        assert_eq!(resp.plans[0].tools, tools);
     }
 
     #[test]

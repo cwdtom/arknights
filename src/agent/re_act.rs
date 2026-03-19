@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::llm;
 use crate::llm::base_llm::{Choice, ToolCall, ToolResult};
 use crate::llm::{ChatResponse, LlmProvider, Message, Role, Tool};
@@ -31,14 +32,14 @@ pub struct ReAct {
 }
 
 impl ReAct {
-    pub fn new(mut messages: Vec<Message>, mut tools_group: Vec<String>) -> anyhow::Result<Self> {
+    pub fn new(mut messages: Vec<Message>, mut tools_group: HashSet<String>) -> anyhow::Result<Self> {
         // system message
         let system: Message = Message::new(Role::System, THINK_PROMPT.to_string());
         messages.insert(0, system);
 
         // default add process control and system
-        tools_group.push("system".to_string());
-        tools_group.push("process_control".to_string());
+        tools_group.insert("system".to_string());
+        tools_group.insert("process_control".to_string());
 
         let tools: Vec<Tool> = tools_group
             .iter()
@@ -180,7 +181,7 @@ mod tests {
     #[tokio::test]
     async fn act_marks_done_for_done_tool() {
         let mut react =
-            ReAct::new(vec![Message::new(Role::User, "task".to_string())], vec![]).unwrap();
+            ReAct::new(vec![Message::new(Role::User, "task".to_string())], HashSet::new()).unwrap();
         let tool_call = ToolCall {
             id: "call_done".to_string(),
             r#type: "function".to_string(),
@@ -200,7 +201,7 @@ mod tests {
     #[tokio::test]
     async fn act_marks_replan_for_replan_tool() {
         let mut react =
-            ReAct::new(vec![Message::new(Role::User, "task".to_string())], vec![]).unwrap();
+            ReAct::new(vec![Message::new(Role::User, "task".to_string())], HashSet::new()).unwrap();
         let tool_call = ToolCall {
             id: "call_replan".to_string(),
             r#type: "function".to_string(),
@@ -220,7 +221,7 @@ mod tests {
     #[tokio::test]
     async fn act_returns_tool_not_found_for_unknown_tool() {
         let mut react =
-            ReAct::new(vec![Message::new(Role::User, "task".to_string())], vec![]).unwrap();
+            ReAct::new(vec![Message::new(Role::User, "task".to_string())], HashSet::new()).unwrap();
         let tool_call = ToolCall {
             id: "call_unknown".to_string(),
             r#type: "function".to_string(),

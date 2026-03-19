@@ -134,7 +134,10 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
                         error!("plan execution error: {:?}", e);
                     }
                 }
-                Err(e) => error!("plan init error: {:?}", e),
+                Err(e) => {
+                    error!("plan init error: {:?}", e);
+                    async_send("critical error occurred".to_string());
+                }
             }
 
             // replay done
