@@ -23,3 +23,5 @@ anyhow = "1.0"
 tracing-appender = "0.2.4"
 # lark
 open-lark = { git = "https://github.com/foxzool/open-lark", features = ["websocket"] }
+# db
+rusqlite = "0.39.0"

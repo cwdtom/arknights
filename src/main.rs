@@ -6,6 +6,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 pub mod agent;
 pub mod im;
 pub mod llm;
+pub mod memory;
 pub mod tool;
 pub mod util;
 
