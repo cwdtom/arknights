@@ -36,10 +36,12 @@ impl ReAct {
         let system: Message = Message::new(Role::System, THINK_PROMPT.to_string());
         messages.insert(0, system);
 
-        // default add process control
+        // default add process control and system
+        tools_group.push("system".to_string());
         tools_group.push("process_control".to_string());
 
-        let tools: Vec<Tool> = tools_group.iter()
+        let tools: Vec<Tool> = tools_group
+            .iter()
             .flat_map(|t| tool::get_tool_by_group(t))
             .map(|t| Tool::new(t.deep_seek_schema()))
             .collect();
@@ -95,13 +97,15 @@ impl ReAct {
                         }
                     };
 
-                    let messages = tool_results.iter()
+                    let messages = tool_results
+                        .iter()
                         .map(|r| Message {
                             role: Role::Tool,
                             tool_call_id: r.tool_call_id.clone(),
                             content: r.content.clone(),
                             tool_calls: None,
-                        }).collect::<Vec<Message>>();
+                        })
+                        .collect::<Vec<Message>>();
                     // OBSERVE
                     self.llm.extend_messages(messages);
                 }

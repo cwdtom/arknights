@@ -1,11 +1,8 @@
-use anyhow::{Context, anyhow};
+use crate::dao::base_dao::BaseDao;
+use anyhow::Context;
 use chrono::Utc;
-use rusqlite::{Connection, Row, params};
-use std::fmt;
+use rusqlite::{Row, params};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use tokio::task;
-
 const CREATE_TABLE_SQL: &str = r#"
 create table if not exists chat_history
 (
@@ -25,45 +22,39 @@ pub struct ChatHistory {
     pub created_at: String,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ChatHistoryDao {
-    db_path: PathBuf,
-    conn: Arc<Mutex<Connection>>,
-}
-
-impl fmt::Debug for ChatHistoryDao {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ChatHistoryDao")
-            .field("db_path", &self.db_path)
-            .finish()
-    }
+    base: BaseDao,
 }
 
 impl ChatHistoryDao {
-    pub fn new<P>(db_path: P) -> anyhow::Result<Self>
+    pub fn new() -> anyhow::Result<Self> {
+        let base = BaseDao::new()?;
+        init_schema(&base)?;
+        Ok(Self { base })
+    }
+
+    pub fn with_path<P>(db_path: P) -> anyhow::Result<Self>
     where
         P: Into<PathBuf>,
     {
-        let db_path = db_path.into();
-        let conn = open_connection(&db_path)?;
-        init_schema(&conn)?;
-
-        Ok(Self {
-            db_path,
-            conn: Arc::new(Mutex::new(conn)),
-        })
+        let base = BaseDao::with_path(db_path)?;
+        init_schema(&base)?;
+        Ok(Self { base })
     }
 
     pub async fn insert(&self, user_content: &str, assistant_content: &str) -> anyhow::Result<i64> {
         let user_content = user_content.to_owned();
         let assistant_content = assistant_content.to_owned();
 
-        self.run_blocking(move |conn| insert_with_conn(conn, &user_content, &assistant_content))
+        self.base
+            .run_blocking(move |conn| insert_with_conn(conn, &user_content, &assistant_content))
             .await
     }
 
     pub async fn list(&self, limit: usize, offset: usize) -> anyhow::Result<Vec<ChatHistory>> {
-        self.run_blocking(move |conn| list_with_conn(conn, limit, offset))
+        self.base
+            .run_blocking(move |conn| list_with_conn(conn, limit, offset))
             .await
     }
 
@@ -74,7 +65,8 @@ impl ChatHistoryDao {
         offset: usize,
     ) -> anyhow::Result<Vec<ChatHistory>> {
         let keyword = keyword.to_owned();
-        self.run_blocking(move |conn| fuzzy_query_with_conn(conn, &keyword, limit, offset))
+        self.base
+            .run_blocking(move |conn| fuzzy_query_with_conn(conn, &keyword, limit, offset))
             .await
     }
 
@@ -88,42 +80,22 @@ impl ChatHistoryDao {
     }
 
     pub fn db_path(&self) -> &Path {
-        &self.db_path
-    }
-
-    async fn run_blocking<T, F>(&self, op: F) -> anyhow::Result<T>
-    where
-        T: Send + 'static,
-        F: FnOnce(&Connection) -> anyhow::Result<T> + Send + 'static,
-    {
-        let conn = Arc::clone(&self.conn);
-
-        task::spawn_blocking(move || {
-            let conn = conn
-                .lock()
-                .map_err(|_| anyhow!("chat_history connection mutex poisoned"))?;
-
-            op(&conn)
-        })
-        .await
-        .context("chat_history blocking task failed")?
+        self.base.db_path()
     }
 }
 
-fn open_connection(db_path: &Path) -> anyhow::Result<Connection> {
-    Connection::open(db_path)
-        .with_context(|| format!("open sqlite db failed: {}", db_path.to_string_lossy()))
-}
-
-fn init_schema(conn: &Connection) -> anyhow::Result<()> {
-    conn.execute(CREATE_TABLE_SQL, [])
-        .context("create chat_history table failed")?;
+fn init_schema(base: &BaseDao) -> anyhow::Result<()> {
+    base.with_connection(|conn| {
+        conn.execute(CREATE_TABLE_SQL, [])
+            .context("create chat_history table failed")?;
+        Ok(())
+    })?;
 
     Ok(())
 }
 
 fn insert_with_conn(
-    conn: &Connection,
+    conn: &rusqlite::Connection,
     user_content: &str,
     assistant_content: &str,
 ) -> anyhow::Result<i64> {
@@ -140,7 +112,7 @@ fn insert_with_conn(
 }
 
 fn list_with_conn(
-    conn: &Connection,
+    conn: &rusqlite::Connection,
     limit: usize,
     offset: usize,
 ) -> anyhow::Result<Vec<ChatHistory>> {
@@ -164,7 +136,7 @@ fn list_with_conn(
 }
 
 fn fuzzy_query_with_conn(
-    conn: &Connection,
+    conn: &rusqlite::Connection,
     keyword: &str,
     limit: usize,
     offset: usize,
@@ -218,7 +190,7 @@ mod tests {
     #[tokio::test]
     async fn insert_and_list_work() {
         let path = unique_db_path("list");
-        let dao = ChatHistoryDao::new(&path).unwrap();
+        let dao = ChatHistoryDao::with_path(&path).unwrap();
 
         dao.insert("hello", "world").await.unwrap();
         dao.insert("question", "answer").await.unwrap();
@@ -234,7 +206,7 @@ mod tests {
     #[tokio::test]
     async fn fuzzy_query_matches_user_and_assistant_content() {
         let path = unique_db_path("fuzzy");
-        let dao = ChatHistoryDao::new(&path).unwrap();
+        let dao = ChatHistoryDao::with_path(&path).unwrap();
 
         dao.insert("deploy status", "done").await.unwrap();
         dao.insert("hello", "status is pending").await.unwrap();
@@ -251,7 +223,7 @@ mod tests {
     #[tokio::test]
     async fn fuzzy_query_escapes_like_wildcards() {
         let path = unique_db_path("escape");
-        let dao = ChatHistoryDao::new(&path).unwrap();
+        let dao = ChatHistoryDao::with_path(&path).unwrap();
 
         dao.insert("100% progress", "done").await.unwrap();
         dao.insert("1000 progress", "done").await.unwrap();
@@ -265,7 +237,7 @@ mod tests {
 
     #[tokio::test]
     async fn in_memory_database_reuses_same_connection() {
-        let dao = ChatHistoryDao::new(":memory:").unwrap();
+        let dao = ChatHistoryDao::with_path(":memory:").unwrap();
 
         dao.insert("hello", "world").await.unwrap();
 

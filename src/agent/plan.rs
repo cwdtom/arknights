@@ -1,6 +1,6 @@
 use crate::agent::ReAct;
 use crate::llm::{LlmProvider, Message, Role};
-use crate::{im, llm};
+use crate::{im, llm, memory};
 use anyhow::anyhow;
 use serde::Deserialize;
 
@@ -12,7 +12,6 @@ You are the PLAN or REPLAN node in a Plan-ReAct-Replan pipeline.
 Given the user's question and any previous execution results, produce a structured plan that guides downstream ReAct nodes to find the answer.
 
 ## Available Tools
-- system: System-related operations
 - internet: Internet-related operations
 
 ## Decision Rules
@@ -47,6 +46,7 @@ Given the user's question and any previous execution results, produce a structur
 
 /// agent plan module
 pub struct Plan {
+    content: String,
     plans: Vec<Task>,
     llm: Box<dyn LlmProvider>,
 }
@@ -71,10 +71,12 @@ impl Plan {
         let system = Message::new(Role::System, PLAN_PROMPT.to_string());
         let mut messages = vec![system];
 
-        // TODO set history chat
+        // set history chat
+        let history = memory::chat_history_service::build_chat_history_messages(20).await?;
+        messages.extend(history);
 
         // make user message
-        let user = Message::new(Role::User, user_message);
+        let user = Message::new(Role::User, user_message.clone());
         messages.push(user);
 
         // make plan
@@ -87,7 +89,8 @@ impl Plan {
 
                 // send replans
                 im::lark::async_send(
-                    plan_resp.plans
+                    plan_resp
+                        .plans
                         .iter()
                         .map(|p| p.task.clone())
                         .collect::<Vec<String>>()
@@ -95,6 +98,7 @@ impl Plan {
                 );
 
                 Ok(Plan {
+                    content: user_message,
                     plans: plan_resp.plans,
                     llm: Box::new(llm),
                 })
@@ -135,9 +139,16 @@ impl Plan {
                     let plan_resp: PlanResp = serde_json::from_str(&choice.message.content)?;
 
                     if plan_resp.is_done {
-                        // send final answer
-                        im::lark::async_send(plan_resp.content);
-                        return Ok(());
+                        // save chat history
+                        return match memory::chat_history_service::save_chat_history(self.content.as_str(), plan_resp.content.as_str()).await {
+                            Ok(_) => {
+                                // send final answer
+                                im::lark::async_send(plan_resp.content);
+
+                                Ok(())
+                            },
+                            Err(err) => Err(anyhow!("save chat history error: {err:#}")),
+                        }
                     } else {
                         // update plans
                         self.llm.push_message(choice.message.clone());

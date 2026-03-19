@@ -1,6 +1,6 @@
-use serde::Serialize;
 use crate::llm;
 use crate::llm::base_llm::ToolCall;
+use serde::Serialize;
 
 #[derive(Serialize, Debug)]
 pub struct BaseTool {

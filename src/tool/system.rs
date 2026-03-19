@@ -22,7 +22,7 @@ impl LlmTool for DateTool {
         llm::base_llm::Function {
             name: self.base_tool.name.clone(),
             description: self.base_tool.description.clone(),
-            parameters: Parameters::new(serde_json::json!({}), vec![])
+            parameters: Parameters::new(serde_json::json!({}), vec![]),
         }
     }
 

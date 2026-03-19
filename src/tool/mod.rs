@@ -1,7 +1,7 @@
 pub(crate) mod base_tool;
-pub(crate) mod system;
-mod process_control;
 mod internet;
+mod process_control;
+pub(crate) mod system;
 
 use base_tool::LlmTool;
 use std::collections::HashMap;
@@ -35,10 +35,7 @@ pub fn get_tool(name: &str) -> Option<&(dyn LlmTool + Send + Sync)> {
 
 /// get all tools
 pub fn all_tools() -> Vec<&'static (dyn LlmTool + Send + Sync)> {
-    TOOL_REGISTRY
-        .values()
-        .map(|t| t.as_ref())
-        .collect()
+    TOOL_REGISTRY.values().map(|t| t.as_ref()).collect()
 }
 
 /// get tool by group

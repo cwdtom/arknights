@@ -1,1 +1,1 @@
-pub mod chat_history_dao;
+pub(crate) mod chat_history_service;

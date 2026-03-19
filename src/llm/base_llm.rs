@@ -163,7 +163,10 @@ mod tests {
     fn role_serializes_lowercase() {
         assert_eq!(serde_json::to_string(&Role::System).unwrap(), r#""system""#);
         assert_eq!(serde_json::to_string(&Role::User).unwrap(), r#""user""#);
-        assert_eq!(serde_json::to_string(&Role::Assistant).unwrap(), r#""assistant""#);
+        assert_eq!(
+            serde_json::to_string(&Role::Assistant).unwrap(),
+            r#""assistant""#
+        );
         assert_eq!(serde_json::to_string(&Role::Tool).unwrap(), r#""tool""#);
     }
 

@@ -1,6 +1,7 @@
 /target
 /logs
 /docs
+*.db
 
 # env
 .env
