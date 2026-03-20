@@ -1,14 +1,17 @@
 use anyhow::{Context, anyhow};
-use rusqlite::trace::{TraceEvent, TraceEventCodes};
 use rusqlite::Connection;
+use rusqlite::ffi::{SQLITE_OK, sqlite3_auto_extension};
+use rusqlite::trace::{TraceEvent, TraceEventCodes};
+use sqlite_vec::sqlite3_vec_init;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use tokio::task;
 use tracing::info;
 
 const DB_PATH_ENV_VAR: &str = "ARKNIGHTS_DB_PATH";
 const DEFAULT_DB_PATH: &str = "arknights.db";
+static SQLITE_VEC_REGISTERED: OnceLock<anyhow::Result<()>> = OnceLock::new();
 
 #[derive(Clone)]
 pub struct BaseDao {
@@ -118,10 +121,31 @@ fn is_special_db_path(db_path: &Path) -> bool {
 }
 
 fn open_connection(db_path: &Path) -> anyhow::Result<Connection> {
+    ensure_sqlite_vec_registered()?;
     let conn = Connection::open(db_path)
         .with_context(|| format!("open sqlite db failed: {}", db_path.to_string_lossy()))?;
     conn.trace_v2(TraceEventCodes::SQLITE_TRACE_STMT, Some(log_sql_trace));
     Ok(conn)
+}
+
+fn ensure_sqlite_vec_registered() -> anyhow::Result<()> {
+    SQLITE_VEC_REGISTERED
+        .get_or_init(|| {
+            let rc = unsafe {
+                sqlite3_auto_extension(Some(std::mem::transmute(sqlite3_vec_init as *const ())))
+            };
+
+            if rc == SQLITE_OK {
+                Ok(())
+            } else {
+                Err(anyhow!(
+                    "register sqlite-vec extension failed: sqlite rc={rc}"
+                ))
+            }
+        })
+        .as_ref()
+        .map(|_| ())
+        .map_err(|err| anyhow!("{err:#}"))
 }
 
 fn log_sql_trace(event: TraceEvent<'_>) {
@@ -198,6 +222,19 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(value, "hello");
+    }
+
+    #[test]
+    fn open_connection_registers_sqlite_vec_functions() {
+        let dao = BaseDao::with_path(":memory:").unwrap();
+        let vec_version = dao
+            .with_connection(|conn| {
+                let version: String =
+                    conn.query_row("select vec_version()", [], |row| row.get(0))?;
+                Ok(version)
+            })
+            .unwrap();
+        assert!(!vec_version.is_empty());
     }
 
     fn unique_db_path_with_parent(prefix: &str) -> PathBuf {

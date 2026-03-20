@@ -63,8 +63,8 @@ impl SearchTool {
         let base_tool = BaseTool {
             group_name: GROUP_NAME.to_string(),
             group_description: GROUP_DESC.to_string(),
-            name: GROUP_NAME.to_string() + "_date",
-            description: "Get system current date, format: yyyy-MM-dd HH:mm:ss".to_string(),
+            name: GROUP_NAME.to_string() + "_search_tool",
+            description: "Get memories from database".to_string(),
         };
 
         SearchTool { base_tool }

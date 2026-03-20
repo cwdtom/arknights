@@ -24,4 +24,8 @@ tracing-appender = "0.2.4"
 # lark
 open-lark = { git = "https://github.com/foxzool/open-lark", features = ["websocket"] }
 # db
-rusqlite = { version = "0.39.0", features = ["trace"] }
+rusqlite = { version = "0.39.0", features = ["trace", "bundled"] }
+sqlite-vec = "0.1.7"
+zerocopy = "0.8"
+# rag
+fastembed = "5.13.0"
