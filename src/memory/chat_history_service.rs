@@ -21,8 +21,7 @@ pub async fn save_chat_history(user_content: &str, assistant_content: &str) -> a
 
 pub async fn build_chat_history_messages(limit: usize) -> anyhow::Result<Vec<Message>> {
     let dao = chat_history_dao()?;
-    let mut histories = dao.list(limit, 0).await?;
-    histories.reverse();
+    let histories = dao.list(limit, 0).await?;
 
     let mut messages = Vec::with_capacity(histories.len() * 2);
     for history in histories {
