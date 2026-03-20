@@ -48,9 +48,11 @@ Given the user's question and any previous execution results, produce a structur
 
 /// agent plan module
 pub struct Plan {
-    content: String,
+    question: String,
     plans: Vec<Task>,
     llm: Box<dyn LlmProvider>,
+    // if first plan can answer
+    answer: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -89,6 +91,16 @@ impl Plan {
                 let plan_resp: PlanResp = serde_json::from_str(&choice.message.content)?;
                 llm.push_message(choice.message.clone());
 
+                // plan already answer
+                if plan_resp.is_done {
+                    return Ok(Plan {
+                        question: user_message,
+                        plans: vec![],
+                        llm: Box::new(llm),
+                        answer: Some(plan_resp.content),
+                    });
+                }
+
                 // send replans
                 im::lark::async_send(
                     plan_resp
@@ -100,9 +112,10 @@ impl Plan {
                 );
 
                 Ok(Plan {
-                    content: user_message,
+                    question: user_message,
                     plans: plan_resp.plans,
                     llm: Box::new(llm),
+                    answer: None,
                 })
             }
             None => Err(anyhow!("llm response is empty")),
@@ -110,6 +123,18 @@ impl Plan {
     }
 
     pub async fn execute(&mut self) -> anyhow::Result<()> {
+        if let Some(answer) = self.answer.take() {
+            match memory::chat_history_service::save_chat_history(self.question.as_str(), &answer)
+                .await
+            {
+                Ok(_) => {}
+                Err(err) => error!("Failed to save chat history: {}", err),
+            }
+
+            im::lark::async_send(answer);
+            return Ok(());
+        }
+
         let mut re_act_history: Vec<Message> = vec![];
 
         for _ in 1..=MAX_TURNS {
@@ -143,7 +168,7 @@ impl Plan {
                     if plan_resp.is_done {
                         // save chat history
                         match memory::chat_history_service::save_chat_history(
-                            self.content.as_str(),
+                            self.question.as_str(),
                             plan_resp.content.as_str(),
                         )
                         .await

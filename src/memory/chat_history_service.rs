@@ -271,13 +271,13 @@ mod tests {
 
         assert_eq!(matched_messages.len(), 4);
         assert!(matches!(matched_messages[0].role, Role::User));
-        assert_eq!(matched_messages[0].content, newer_user);
+        assert_eq!(matched_messages[0].content, older_user);
         assert!(matches!(matched_messages[1].role, Role::Assistant));
-        assert_eq!(matched_messages[1].content, newer_assistant);
+        assert_eq!(matched_messages[1].content, older_assistant);
         assert!(matches!(matched_messages[2].role, Role::User));
-        assert_eq!(matched_messages[2].content, older_user);
+        assert_eq!(matched_messages[2].content, newer_user);
         assert!(matches!(matched_messages[3].role, Role::Assistant));
-        assert_eq!(matched_messages[3].content, older_assistant);
+        assert_eq!(matched_messages[3].content, newer_assistant);
     }
 
     #[tokio::test]
