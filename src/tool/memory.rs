@@ -64,7 +64,7 @@ impl SearchTool {
             group_name: GROUP_NAME.to_string(),
             group_description: GROUP_DESC.to_string(),
             name: GROUP_NAME.to_string() + "_search_tool",
-            description: "Get memories from database".to_string(),
+            description: "Get memories from rag database by keywords.".to_string(),
         };
 
         SearchTool { base_tool }
