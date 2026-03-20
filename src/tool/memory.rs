@@ -54,7 +54,7 @@ impl LlmTool for SearchTool {
 
         memory::chat_history_service::fuzz_query(args.keywords)
             .await
-            .unwrap_or_else(|e| "search memory error".to_string())
+            .unwrap_or_else(|_e| "search memory error".to_string())
     }
 }
 
