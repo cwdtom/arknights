@@ -1,9 +1,9 @@
 use crate::dao::chat_history_dao::ChatHistoryDao;
 use crate::dao::chat_history_vec_dao::ChatHistoryVecDao;
 use crate::llm::{Message, Role};
-use crate::memory::rag_embedder::{self, RagConfig, RagRuntimeConfig};
 #[cfg(test)]
 use crate::memory::rag_embedder::RagModel;
+use crate::memory::rag_embedder::{self, RagConfig, RagRuntimeConfig};
 use anyhow::anyhow;
 use std::sync::LazyLock;
 use tracing::{error, info};
@@ -47,6 +47,8 @@ fn test_db_path() -> &'static PathBuf {
     &TEST_DB_PATH
 }
 
+const RAG_SEARCH_LIMIT: usize = 5;
+
 pub async fn save_chat_history(user_content: &str, assistant_content: &str) -> anyhow::Result<i64> {
     let dao = chat_history_dao()?;
     let id = dao.insert(user_content, assistant_content).await?;
@@ -83,6 +85,78 @@ pub async fn fuzz_query(keywords: Vec<String>) -> anyhow::Result<String> {
     }
 
     Ok(histories.join("\n"))
+}
+
+pub async fn search_rag(keywords: Vec<String>) -> anyhow::Result<String> {
+    let (query, keyword_count) = build_rag_query(keywords)?;
+
+    info!(
+        event = "rag_search_start",
+        query = %query,
+        keyword_count
+    );
+
+    let result = async {
+        let config = match RagConfig::from_env()? {
+            RagConfig::Enabled(config) => config,
+            RagConfig::Disabled => anyhow::bail!("rag search requires ARKNIGHTS_RAG_MODEL"),
+        };
+
+        let query_embedding = rag_embedder::embed_text(config.clone(), query.clone()).await?;
+        let dimension = query_embedding.len();
+        let vec_dao = chat_history_vec_dao(&config)?;
+        let matches = vec_dao.search(query_embedding, RAG_SEARCH_LIMIT).await?;
+        let dao = chat_history_dao()?;
+        let mut histories = Vec::with_capacity(matches.len());
+
+        for matched in matches {
+            let history = dao.get(matched.chat_history_id).await?.ok_or_else(|| {
+                anyhow!(
+                    "chat history {} missing for rag result",
+                    matched.chat_history_id
+                )
+            })?;
+            histories.push(serde_json::to_string(&history)?);
+        }
+
+        Ok((histories.join("\n"), dimension))
+    }
+    .await;
+
+    match result {
+        Ok((joined, dimension)) => {
+            let result_count = if joined.is_empty() {
+                0
+            } else {
+                joined.lines().count()
+            };
+            info!(
+                event = "rag_search_success",
+                query = %query,
+                result_count,
+                dimension
+            );
+            Ok(joined)
+        }
+        Err(err) => {
+            error!(event = "rag_search_failed", query = %query, error = %err);
+            Err(err)
+        }
+    }
+}
+
+fn build_rag_query(keywords: Vec<String>) -> anyhow::Result<(String, usize)> {
+    let normalized_keywords = keywords
+        .into_iter()
+        .map(|keyword| keyword.trim().to_string())
+        .filter(|keyword| !keyword.is_empty())
+        .collect::<Vec<_>>();
+
+    if normalized_keywords.is_empty() {
+        anyhow::bail!("rag search keywords must not be empty");
+    }
+
+    Ok((normalized_keywords.join(" "), normalized_keywords.len()))
 }
 
 fn spawn_index_chat_history(chat_history_id: i64, user_content: String, assistant_content: String) {
@@ -127,8 +201,8 @@ async fn index_chat_history(
     user_content: String,
     assistant_content: String,
 ) -> anyhow::Result<usize> {
-    let embedding = rag_embedder::embed_chat_history(config.clone(), &user_content, &assistant_content)
-        .await?;
+    let embedding =
+        rag_embedder::embed_chat_history(config.clone(), &user_content, &assistant_content).await?;
     let dimension = embedding.len();
     let dao = chat_history_vec_dao(&config)?;
     dao.upsert_embedding(chat_history_id, embedding).await?;
@@ -139,8 +213,8 @@ async fn index_chat_history(
 mod tests {
     use super::*;
     use crate::memory::rag_embedder;
-    use std::sync::OnceLock;
     use serde_json::Value;
+    use std::sync::OnceLock;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     static TEST_LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
@@ -182,8 +256,12 @@ mod tests {
         let newer_user = format!("newer-user-{token}");
         let newer_assistant = format!("newer-assistant-{token}");
 
-        save_chat_history(&older_user, &older_assistant).await.unwrap();
-        save_chat_history(&newer_user, &newer_assistant).await.unwrap();
+        save_chat_history(&older_user, &older_assistant)
+            .await
+            .unwrap();
+        save_chat_history(&newer_user, &newer_assistant)
+            .await
+            .unwrap();
 
         let messages = build_chat_history_messages(100).await.unwrap();
         let matched_messages: Vec<_> = messages
@@ -246,11 +324,13 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         assert!(id > 0);
-        assert!(!test_chat_history_vec_dao(RagModel::BgeSmallEnV15)
-            .unwrap()
-            .has_embedding(id)
-            .await
-            .unwrap());
+        assert!(
+            !test_chat_history_vec_dao(RagModel::BgeSmallEnV15)
+                .unwrap()
+                .has_embedding(id)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -268,11 +348,13 @@ mod tests {
 
         wait_for_embedding(id, RagModel::BgeSmallEnV15).await;
 
-        assert!(test_chat_history_vec_dao(RagModel::BgeSmallEnV15)
-            .unwrap()
-            .has_embedding(id)
-            .await
-            .unwrap());
+        assert!(
+            test_chat_history_vec_dao(RagModel::BgeSmallEnV15)
+                .unwrap()
+                .has_embedding(id)
+                .await
+                .unwrap()
+        );
         rag_embedder::clear_test_embedding_mode();
     }
 
@@ -292,11 +374,13 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         assert!(id > 0);
-        assert!(!test_chat_history_vec_dao(RagModel::BgeSmallEnV15)
-            .unwrap()
-            .has_embedding(id)
-            .await
-            .unwrap());
+        assert!(
+            !test_chat_history_vec_dao(RagModel::BgeSmallEnV15)
+                .unwrap()
+                .has_embedding(id)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -343,6 +427,195 @@ mod tests {
         assert!(logs.contains("unsupported ARKNIGHTS_RAG_MODEL"));
     }
 
+    #[tokio::test]
+    async fn search_rag_returns_json_lines_for_top_matches() {
+        let _guard = rag_embedder::TEST_ENV_LOCK.lock().unwrap();
+        disable_rag_for_test();
+
+        let token = unique_token("search-rag");
+        let ids = vec![
+            save_chat_history(&format!("user-1-{token}"), &format!("assistant-1-{token}"))
+                .await
+                .unwrap(),
+            save_chat_history(&format!("user-2-{token}"), &format!("assistant-2-{token}"))
+                .await
+                .unwrap(),
+            save_chat_history(&format!("user-3-{token}"), &format!("assistant-3-{token}"))
+                .await
+                .unwrap(),
+            save_chat_history(&format!("user-4-{token}"), &format!("assistant-4-{token}"))
+                .await
+                .unwrap(),
+            save_chat_history(&format!("user-5-{token}"), &format!("assistant-5-{token}"))
+                .await
+                .unwrap(),
+            save_chat_history(&format!("user-6-{token}"), &format!("assistant-6-{token}"))
+                .await
+                .unwrap(),
+        ];
+
+        unsafe {
+            std::env::set_var("ARKNIGHTS_RAG_MODEL", "BAAI/bge-small-en-v1.5");
+        }
+
+        let dao = test_chat_history_vec_dao(RagModel::BgeSmallEnV15).unwrap();
+        dao.upsert_embedding(
+            ids[0],
+            embedding_with_offset(RagModel::BgeSmallEnV15, 40, 1.0, 0.0),
+        )
+        .await
+        .unwrap();
+        dao.upsert_embedding(
+            ids[1],
+            embedding_with_offset(RagModel::BgeSmallEnV15, 40, 0.99, 0.01),
+        )
+        .await
+        .unwrap();
+        dao.upsert_embedding(
+            ids[2],
+            embedding_with_offset(RagModel::BgeSmallEnV15, 40, 0.97, 0.03),
+        )
+        .await
+        .unwrap();
+        dao.upsert_embedding(
+            ids[3],
+            embedding_with_offset(RagModel::BgeSmallEnV15, 40, 0.95, 0.05),
+        )
+        .await
+        .unwrap();
+        dao.upsert_embedding(
+            ids[4],
+            embedding_with_offset(RagModel::BgeSmallEnV15, 40, 0.9, 0.1),
+        )
+        .await
+        .unwrap();
+        dao.upsert_embedding(
+            ids[5],
+            embedding_with_offset(RagModel::BgeSmallEnV15, 40, 0.0, 1.0),
+        )
+        .await
+        .unwrap();
+
+        rag_embedder::set_test_embedding_success(embedding_with_offset(
+            RagModel::BgeSmallEnV15,
+            40,
+            1.0,
+            0.0,
+        ));
+
+        let joined = search_rag(vec![" deploy ".to_string(), token.clone(), "".to_string()])
+            .await
+            .unwrap();
+        let lines: Vec<_> = joined.lines().collect();
+
+        assert_eq!(lines.len(), RAG_SEARCH_LIMIT);
+        assert!(joined.contains('\n'));
+
+        let expected_ids = &ids[..RAG_SEARCH_LIMIT];
+        for (line, expected_id) in lines.iter().zip(expected_ids.iter()) {
+            let value: Value = serde_json::from_str(line).unwrap();
+            assert_eq!(value["id"].as_i64().unwrap(), *expected_id);
+            assert!(value["user_content"].as_str().unwrap().contains(&token));
+        }
+
+        rag_embedder::clear_test_embedding_mode();
+    }
+
+    #[tokio::test]
+    async fn search_rag_returns_err_when_keywords_are_empty_after_trim() {
+        let _guard = rag_embedder::TEST_ENV_LOCK.lock().unwrap();
+        disable_rag_for_test();
+
+        let err = search_rag(vec![" ".to_string(), "\t".to_string()])
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("keywords must not be empty"));
+    }
+
+    #[tokio::test]
+    async fn search_rag_returns_err_when_rag_is_disabled() {
+        let _guard = rag_embedder::TEST_ENV_LOCK.lock().unwrap();
+        disable_rag_for_test();
+
+        let err = search_rag(vec!["hello".to_string()]).await.unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("rag search requires ARKNIGHTS_RAG_MODEL")
+        );
+    }
+
+    #[tokio::test]
+    async fn search_rag_returns_err_when_rag_model_is_invalid() {
+        let _guard = rag_embedder::TEST_ENV_LOCK.lock().unwrap();
+        rag_embedder::clear_test_embedding_mode();
+        unsafe {
+            std::env::set_var("ARKNIGHTS_RAG_MODEL", "invalid-model");
+        }
+
+        let err = search_rag(vec!["hello".to_string()]).await.unwrap_err();
+
+        assert!(err.to_string().contains("unsupported ARKNIGHTS_RAG_MODEL"));
+    }
+
+    #[tokio::test]
+    async fn search_rag_emits_log_events() {
+        let _guard = rag_embedder::TEST_ENV_LOCK.lock().unwrap();
+        init_test_logging();
+        disable_rag_for_test();
+
+        let token = unique_token("search-log");
+        let id = save_chat_history(&format!("user-{token}"), &format!("assistant-{token}"))
+            .await
+            .unwrap();
+        unsafe {
+            std::env::set_var("ARKNIGHTS_RAG_MODEL", "BAAI/bge-small-en-v1.5");
+        }
+        let dao = test_chat_history_vec_dao(RagModel::BgeSmallEnV15).unwrap();
+        dao.upsert_embedding(
+            id,
+            embedding_with_offset(RagModel::BgeSmallEnV15, 80, 1.0, 0.0),
+        )
+        .await
+        .unwrap();
+        rag_embedder::set_test_embedding_success(embedding_with_offset(
+            RagModel::BgeSmallEnV15,
+            80,
+            1.0,
+            0.0,
+        ));
+
+        let success_query = format!("success-{token}");
+        let success_joined = search_rag(vec![success_query.clone()]).await.unwrap();
+        let expected_result_count = if success_joined.is_empty() {
+            0
+        } else {
+            success_joined.lines().count()
+        };
+
+        unsafe {
+            std::env::set_var("ARKNIGHTS_RAG_MODEL", "invalid-model");
+        }
+        let failed_query = format!("failed-{token}");
+        let err = search_rag(vec![failed_query.clone()]).await.unwrap_err();
+        assert!(err.to_string().contains("unsupported ARKNIGHTS_RAG_MODEL"));
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let logs = std::fs::read_to_string("logs/arknights.log").unwrap();
+        assert!(logs.contains("rag_search_start"));
+        assert!(logs.contains("rag_search_success"));
+        assert!(logs.contains("rag_search_failed"));
+        assert!(logs.contains(&format!("query={success_query}")));
+        assert!(logs.contains(&format!("query={failed_query}")));
+        assert!(logs.contains(&format!("result_count={expected_result_count}")));
+        assert!(logs.contains("dimension=384"));
+        assert!(logs.contains("unsupported ARKNIGHTS_RAG_MODEL"));
+
+        rag_embedder::clear_test_embedding_mode();
+    }
+
     fn unique_token(label: &str) -> String {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -377,6 +650,13 @@ mod tests {
 
     fn test_chat_history_vec_dao(model: RagModel) -> anyhow::Result<ChatHistoryVecDao> {
         ChatHistoryVecDao::with_path(test_db_path(), model.dimension())
+    }
+
+    fn embedding_with_offset(model: RagModel, offset: usize, first: f32, second: f32) -> Vec<f32> {
+        let mut embedding = vec![0.0; model.dimension()];
+        embedding[offset] = first;
+        embedding[offset + 1] = second;
+        embedding
     }
 
     async fn wait_for_embedding(chat_history_id: i64, model: RagModel) {

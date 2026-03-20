@@ -10,6 +10,12 @@ pub struct ChatHistoryVecDao {
     dimension: usize,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChatHistoryVectorMatch {
+    pub chat_history_id: i64,
+    pub distance: f64,
+}
+
 impl ChatHistoryVecDao {
     pub fn new(dimension: usize) -> anyhow::Result<Self> {
         let base = BaseDao::new()?;
@@ -47,6 +53,20 @@ impl ChatHistoryVecDao {
 
     pub async fn count(&self) -> anyhow::Result<i64> {
         self.base.run_blocking(count_with_conn).await
+    }
+
+    pub async fn search(
+        &self,
+        query_embedding: Vec<f32>,
+        limit: usize,
+    ) -> anyhow::Result<Vec<ChatHistoryVectorMatch>> {
+        let expected_dimension = self.dimension;
+
+        self.base
+            .run_blocking(move |conn| {
+                search_with_conn(conn, query_embedding, expected_dimension, limit)
+            })
+            .await
     }
 
     pub fn db_path(&self) -> &Path {
@@ -161,6 +181,44 @@ fn count_with_conn(conn: &rusqlite::Connection) -> anyhow::Result<i64> {
     Ok(count)
 }
 
+fn search_with_conn(
+    conn: &rusqlite::Connection,
+    query_embedding: Vec<f32>,
+    expected_dimension: usize,
+    limit: usize,
+) -> anyhow::Result<Vec<ChatHistoryVectorMatch>> {
+    if query_embedding.len() != expected_dimension {
+        anyhow::bail!(
+            "chat_history_vec query dimension mismatch: expected {}, got {}",
+            expected_dimension,
+            query_embedding.len()
+        );
+    }
+
+    let mut stmt = conn.prepare(
+        "select chat_history_id, distance
+         from chat_history_vec
+         where embedding match ?1 and k = ?2
+         order by distance",
+    )?;
+
+    let rows = stmt.query_map(
+        rusqlite::params![query_embedding.as_slice().as_bytes(), limit as i64],
+        |row| {
+            Ok(ChatHistoryVectorMatch {
+                chat_history_id: row.get(0)?,
+                distance: row.get(1)?,
+            })
+        },
+    )?;
+    let mut matches = Vec::new();
+    for row in rows {
+        matches.push(row?);
+    }
+
+    Ok(matches)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,6 +276,25 @@ mod tests {
             err.to_string()
                 .contains("chat_history_vec dimension mismatch")
         );
+
+        cleanup_db(&path);
+    }
+
+    #[tokio::test]
+    async fn search_returns_closest_rows_in_distance_order() {
+        let path = unique_db_path("search");
+        let dao = ChatHistoryVecDao::with_path(&path, 2).unwrap();
+
+        dao.upsert_embedding(1, vec![1.0, 0.0]).await.unwrap();
+        dao.upsert_embedding(2, vec![0.8, 0.2]).await.unwrap();
+        dao.upsert_embedding(3, vec![0.0, 1.0]).await.unwrap();
+
+        let matches = dao.search(vec![1.0, 0.0], 2).await.unwrap();
+
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].chat_history_id, 1);
+        assert_eq!(matches[1].chat_history_id, 2);
+        assert!(matches[0].distance <= matches[1].distance);
 
         cleanup_db(&path);
     }

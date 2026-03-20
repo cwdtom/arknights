@@ -1,9 +1,10 @@
 use crate::dao::base_dao::BaseDao;
 use anyhow::Context;
 use chrono::Utc;
+use rusqlite::OptionalExtension;
 use rusqlite::{Row, params};
-use std::path::{Path, PathBuf};
 use serde::Serialize;
+use std::path::{Path, PathBuf};
 
 const CREATE_TABLE_SQL: &str = r#"
 create table if not exists chat_history
@@ -57,6 +58,12 @@ impl ChatHistoryDao {
     pub async fn list(&self, limit: usize, offset: usize) -> anyhow::Result<Vec<ChatHistory>> {
         self.base
             .run_blocking(move |conn| list_with_conn(conn, limit, offset))
+            .await
+    }
+
+    pub async fn get(&self, id: i64) -> anyhow::Result<Option<ChatHistory>> {
+        self.base
+            .run_blocking(move |conn| get_with_conn(conn, id))
             .await
     }
 
@@ -135,6 +142,18 @@ fn list_with_conn(
     }
 
     Ok(histories)
+}
+
+fn get_with_conn(conn: &rusqlite::Connection, id: i64) -> anyhow::Result<Option<ChatHistory>> {
+    conn.query_row(
+        "select id, user_content, assistant_content, created_at
+         from chat_history
+         where id = ?1",
+        params![id],
+        ChatHistoryDao::map_row,
+    )
+    .optional()
+    .map_err(Into::into)
 }
 
 fn fuzzy_query_with_conn(
@@ -218,6 +237,21 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].user_content, "hello");
         assert_eq!(rows[1].user_content, "deploy status");
+
+        cleanup_db(&path);
+    }
+
+    #[tokio::test]
+    async fn get_returns_row_when_id_exists() {
+        let path = unique_db_path("get");
+        let dao = ChatHistoryDao::with_path(&path).unwrap();
+
+        let id = dao.insert("question", "answer").await.unwrap();
+
+        let row = dao.get(id).await.unwrap().unwrap();
+        assert_eq!(row.id, id);
+        assert_eq!(row.user_content, "question");
+        assert_eq!(row.assistant_content, "answer");
 
         cleanup_db(&path);
     }

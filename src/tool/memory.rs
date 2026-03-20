@@ -2,7 +2,7 @@ use crate::llm::base_llm::{Parameters, ToolCall};
 use crate::tool::base_tool::{BaseTool, LlmTool};
 use crate::{llm, memory};
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{error, info};
 
 const GROUP_NAME: &str = "memory";
 const GROUP_DESC: &str = "Memory tools.";
@@ -52,6 +52,12 @@ impl LlmTool for SearchTool {
             }
         };
 
+        // priority use rag
+        match memory::chat_history_service::search_rag(args.keywords.clone()).await {
+            Ok(results) => return results,
+            Err(e) => info!("failed to search rag: {:?}", e),
+        }
+
         memory::chat_history_service::fuzz_query(args.keywords)
             .await
             .unwrap_or_else(|_e| "search memory error".to_string())
@@ -86,10 +92,7 @@ impl LlmTool for ListTool {
         llm::base_llm::Function {
             name: self.base_tool.name.clone(),
             description: self.base_tool.description.clone(),
-            parameters: Parameters::new(
-                serde_json::json!({}),
-                vec![],
-            ),
+            parameters: Parameters::new(serde_json::json!({}), vec![]),
         }
     }
 
@@ -105,8 +108,8 @@ impl LlmTool for ListTool {
                 }
 
                 histories.join("\n")
-            },
-            Err(e) => format!("Error: list chat histories: {}", e)
+            }
+            Err(e) => format!("Error: list chat histories: {}", e),
         }
     }
 }

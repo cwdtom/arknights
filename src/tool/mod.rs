@@ -1,8 +1,8 @@
 pub(crate) mod base_tool;
 mod internet;
+mod memory;
 mod process_control;
 pub(crate) mod system;
-mod memory;
 
 use base_tool::LlmTool;
 use std::collections::HashMap;
@@ -27,8 +27,14 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         map.insert(replan.base_tool.name.clone(), Box::new(replan));
         map.insert(search.base_tool.name.clone(), Box::new(search));
         map.insert(curl.base_tool.name.clone(), Box::new(curl));
-        map.insert(memory_search_tool.base_tool.name.clone(), Box::new(memory_search_tool));
-        map.insert(memory_list_tool.base_tool.name.clone(), Box::new(memory_list_tool));
+        map.insert(
+            memory_search_tool.base_tool.name.clone(),
+            Box::new(memory_search_tool),
+        );
+        map.insert(
+            memory_list_tool.base_tool.name.clone(),
+            Box::new(memory_list_tool),
+        );
 
         map
     });
