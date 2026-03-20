@@ -1,7 +1,9 @@
 use crate::dao::chat_history_dao::ChatHistoryDao;
 use crate::dao::chat_history_vec_dao::ChatHistoryVecDao;
 use crate::llm::{Message, Role};
-use crate::memory::rag_embedder::{self, RagConfig, RagModel, RagRuntimeConfig};
+use crate::memory::rag_embedder::{self, RagConfig, RagRuntimeConfig};
+#[cfg(test)]
+use crate::memory::rag_embedder::RagModel;
 use anyhow::anyhow;
 use std::sync::LazyLock;
 use tracing::{error, info};

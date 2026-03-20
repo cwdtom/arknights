@@ -18,6 +18,7 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         let search = internet::Search::new();
         let curl = internet::Curl::new();
         let memory_search_tool = memory::SearchTool::new();
+        let memory_list_tool = memory::ListTool::new();
 
         let mut map: HashMap<String, Box<dyn LlmTool + Send + Sync>> = HashMap::new();
         map.insert(date.base_tool.name.clone(), Box::new(date));
@@ -27,6 +28,7 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         map.insert(search.base_tool.name.clone(), Box::new(search));
         map.insert(curl.base_tool.name.clone(), Box::new(curl));
         map.insert(memory_search_tool.base_tool.name.clone(), Box::new(memory_search_tool));
+        map.insert(memory_list_tool.base_tool.name.clone(), Box::new(memory_list_tool));
 
         map
     });

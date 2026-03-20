@@ -70,3 +70,56 @@ impl SearchTool {
         SearchTool { base_tool }
     }
 }
+
+#[derive(Serialize, Debug)]
+pub struct ListTool {
+    pub base_tool: BaseTool,
+}
+
+#[async_trait::async_trait]
+impl LlmTool for ListTool {
+    fn group_name(&self) -> &str {
+        &self.base_tool.group_name
+    }
+
+    fn deep_seek_schema(&self) -> llm::base_llm::Function {
+        llm::base_llm::Function {
+            name: self.base_tool.name.clone(),
+            description: self.base_tool.description.clone(),
+            parameters: Parameters::new(
+                serde_json::json!({}),
+                vec![],
+            ),
+        }
+    }
+
+    async fn deep_seek_call(&self, _: &ToolCall) -> String {
+        match memory::chat_history_service::build_chat_history_messages(20).await {
+            Ok(messages) => {
+                let mut histories = vec![];
+                for m in messages {
+                    match serde_json::to_string(&m) {
+                        Ok(json) => histories.push(json),
+                        Err(_err) => continue,
+                    }
+                }
+
+                histories.join("\n")
+            },
+            Err(e) => format!("Error: list chat histories: {}", e)
+        }
+    }
+}
+
+impl ListTool {
+    pub fn new() -> Self {
+        let base_tool = BaseTool {
+            group_name: GROUP_NAME.to_string(),
+            group_description: GROUP_DESC.to_string(),
+            name: GROUP_NAME.to_string() + "_list_tool",
+            description: "Get recent chat histories.".to_string(),
+        };
+
+        ListTool { base_tool }
+    }
+}
