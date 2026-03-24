@@ -185,4 +185,5 @@ fn current_timestamp() -> String {
 }
 
 #[cfg(test)]
+#[path = "kv_dao_tests.rs"]
 mod tests;
