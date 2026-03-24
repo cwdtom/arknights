@@ -292,6 +292,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn build_chat_history_messages_skips_histories_older_than_24_hours() {
+        let _guard = rag_embedder::TEST_ENV_LOCK.lock().unwrap();
+        disable_rag_for_test();
+        let token = unique_token("ttl");
+        let expired_user = format!("expired-user-{token}");
+        let expired_assistant = format!("expired-assistant-{token}");
+        let recent_user = format!("recent-user-{token}");
+        let recent_assistant = format!("recent-assistant-{token}");
+
+        insert_chat_history_with_created_at(
+            &expired_user,
+            &expired_assistant,
+            &(chrono::Utc::now() - chrono::Duration::hours(25)).to_rfc3339(),
+        );
+        insert_chat_history_with_created_at(
+            &recent_user,
+            &recent_assistant,
+            &(chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339(),
+        );
+
+        let messages = build_chat_history_messages(100).await.unwrap();
+        let matched_messages: Vec<_> = messages
+            .into_iter()
+            .filter(|message| message.content.contains(&token))
+            .collect();
+
+        assert_eq!(matched_messages.len(), 2);
+        assert!(matches!(matched_messages[0].role, Role::User));
+        assert_timestamped_message(&matched_messages[0].content, &recent_user);
+        assert!(matches!(matched_messages[1].role, Role::Assistant));
+        assert_timestamped_message(&matched_messages[1].content, &recent_assistant);
+    }
+
+    #[tokio::test]
     async fn fuzz_query_keeps_matches_from_each_keyword_as_json_lines() {
         let _guard = rag_embedder::TEST_ENV_LOCK.lock().unwrap();
         disable_rag_for_test();
@@ -661,6 +695,23 @@ mod tests {
 
     fn test_chat_history_vec_dao(model: RagModel) -> anyhow::Result<ChatHistoryVecDao> {
         ChatHistoryVecDao::with_path(test_db_path(), model.dimension())
+    }
+
+    fn insert_chat_history_with_created_at(
+        user_content: &str,
+        assistant_content: &str,
+        created_at: &str,
+    ) -> i64 {
+        let _ = chat_history_dao().unwrap();
+        let conn = rusqlite::Connection::open(test_db_path()).unwrap();
+        conn.execute(
+            "insert into chat_history (user_content, assistant_content, created_at)
+             values (?1, ?2, ?3)",
+            rusqlite::params![user_content, assistant_content, created_at],
+        )
+        .unwrap();
+
+        conn.last_insert_rowid()
     }
 
     fn assert_timestamped_message(actual: &str, expected_suffix: &str) {
