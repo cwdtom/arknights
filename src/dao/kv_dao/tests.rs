@@ -148,3 +148,20 @@ async fn delete_fails_when_key_missing() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn in_memory_database_reuses_same_connection() -> Result<()> {
+    let dao = KvDao::with_path(":memory:")?;
+
+    dao.create("app.mode", "prod").await?;
+
+    let entry = dao
+        .get("app.mode")
+        .await?
+        .expect("KV entry should be present for in-memory DB");
+
+    assert_eq!(entry.key, "app.mode");
+    assert_eq!(entry.value, "prod");
+
+    Ok(())
+}
