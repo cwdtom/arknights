@@ -11,6 +11,7 @@ const THINK_PROMPT: &str = r#"
 You are the "think" node in a ReAct loop.
 Primary rule:
 - Using appropriate tools to solve problems.
+- When information is missing, be sure to use the memory tool to search for an answer once before calling ask_user.
 
 Output contract:
 - Keep the tool args language as same as the user's message.

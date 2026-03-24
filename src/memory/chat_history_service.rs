@@ -10,6 +10,7 @@ use tracing::{error, info};
 
 #[cfg(test)]
 use std::path::PathBuf;
+use chrono::{DateTime, Duration, Local};
 
 #[cfg(not(test))]
 static CHAT_HISTORY_DAO: LazyLock<anyhow::Result<ChatHistoryDao>> =
@@ -62,9 +63,19 @@ pub async fn build_chat_history_messages(limit: usize) -> anyhow::Result<Vec<Mes
     histories.reverse();
 
     let mut messages = Vec::with_capacity(histories.len() * 2);
+    let yesterday = Local::now() - Duration::hours(24);
     for history in histories {
-        messages.push(Message::new(Role::User, history.user_content));
-        messages.push(Message::new(Role::Assistant, history.assistant_content));
+        // create time must less than 24 hours
+        let create_time = DateTime::parse_from_rfc3339(&history.created_at)?.with_timezone(&Local);
+        if create_time < yesterday {
+            continue;
+        }
+
+        let user_content = history.user_content.clone();
+        let assistant_content = history.assistant_content.clone();
+        let create_time_str = history.created_at;
+        messages.push(Message::new(Role::User, format!("[{create_time_str}] {user_content}")));
+        messages.push(Message::new(Role::Assistant, format!("[{create_time_str}] {assistant_content}")));
     }
 
     Ok(messages)
