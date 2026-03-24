@@ -252,9 +252,9 @@ mod tests {
 
         assert_eq!(matched_messages.len(), 2);
         assert!(matches!(matched_messages[0].role, Role::User));
-        assert_eq!(matched_messages[0].content, user_content);
+        assert_timestamped_message(&matched_messages[0].content, &user_content);
         assert!(matches!(matched_messages[1].role, Role::Assistant));
-        assert_eq!(matched_messages[1].content, assistant_content);
+        assert_timestamped_message(&matched_messages[1].content, &assistant_content);
     }
 
     #[tokio::test]
@@ -282,13 +282,13 @@ mod tests {
 
         assert_eq!(matched_messages.len(), 4);
         assert!(matches!(matched_messages[0].role, Role::User));
-        assert_eq!(matched_messages[0].content, older_user);
+        assert_timestamped_message(&matched_messages[0].content, &older_user);
         assert!(matches!(matched_messages[1].role, Role::Assistant));
-        assert_eq!(matched_messages[1].content, older_assistant);
+        assert_timestamped_message(&matched_messages[1].content, &older_assistant);
         assert!(matches!(matched_messages[2].role, Role::User));
-        assert_eq!(matched_messages[2].content, newer_user);
+        assert_timestamped_message(&matched_messages[2].content, &newer_user);
         assert!(matches!(matched_messages[3].role, Role::Assistant));
-        assert_eq!(matched_messages[3].content, newer_assistant);
+        assert_timestamped_message(&matched_messages[3].content, &newer_assistant);
     }
 
     #[tokio::test]
@@ -661,6 +661,15 @@ mod tests {
 
     fn test_chat_history_vec_dao(model: RagModel) -> anyhow::Result<ChatHistoryVecDao> {
         ChatHistoryVecDao::with_path(test_db_path(), model.dimension())
+    }
+
+    fn assert_timestamped_message(actual: &str, expected_suffix: &str) {
+        let (prefix, suffix) = actual
+            .split_once("] ")
+            .expect("message should contain RFC3339 prefix");
+        assert!(prefix.starts_with('['));
+        chrono::DateTime::parse_from_rfc3339(&prefix[1..]).unwrap();
+        assert_eq!(suffix, expected_suffix);
     }
 
     fn embedding_with_offset(model: RagModel, offset: usize, first: f32, second: f32) -> Vec<f32> {

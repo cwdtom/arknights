@@ -202,6 +202,7 @@ mod tests {
     #[test]
     fn plan_resp_defaults_is_done_to_false() {
         let json = r#"{
+            "expand_goal": "collect context with explicit scope",
             "plans": [{"task":"collect context","tools":["internet"]}],
             "content": ""
         }"#;
@@ -209,6 +210,7 @@ mod tests {
         let resp: PlanResp = serde_json::from_str(json).unwrap();
         assert!(!resp.is_done);
         assert_eq!(resp.content, "");
+        assert_eq!(resp.expand_goal, "collect context with explicit scope");
         assert_eq!(resp.plans.len(), 1);
         assert_eq!(resp.plans[0].task, "collect context");
         let mut tools = HashSet::new();
@@ -219,6 +221,7 @@ mod tests {
     #[test]
     fn plan_resp_accepts_done_payload() {
         let json = r#"{
+            "expand_goal": "final answer with explicit scope",
             "plans": [],
             "content": "final answer",
             "is_done": true
@@ -227,6 +230,7 @@ mod tests {
         let resp: PlanResp = serde_json::from_str(json).unwrap();
         assert!(resp.is_done);
         assert_eq!(resp.content, "final answer");
+        assert_eq!(resp.expand_goal, "final answer with explicit scope");
         assert!(resp.plans.is_empty());
     }
 }
