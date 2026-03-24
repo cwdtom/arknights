@@ -1,6 +1,7 @@
 /target
 /logs
 /docs
+.worktrees/
 *.db
 models
 
