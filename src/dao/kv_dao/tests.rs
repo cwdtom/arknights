@@ -1,9 +1,20 @@
 use super::*;
 use anyhow::Result;
-use chrono::DateTime as ChronoDateTime;
+use chrono::{DateTime as ChronoDateTime, FixedOffset, Utc};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::time::{sleep, Duration};
+use tokio::time::{sleep, Duration, Instant};
+
+const TIMESTAMP_POLL_INTERVAL: Duration = Duration::from_millis(1);
+const TIMESTAMP_POLL_TIMEOUT: Duration = Duration::from_secs(1);
+
+async fn wait_for_timestamp_tick(previous: &ChronoDateTime<FixedOffset>) {
+    let previous_millis = previous.timestamp_millis();
+    let deadline = Instant::now() + TIMESTAMP_POLL_TIMEOUT;
+    while Utc::now().timestamp_millis() <= previous_millis && Instant::now() < deadline {
+        sleep(TIMESTAMP_POLL_INTERVAL).await;
+    }
+}
 
 fn unique_db_path(prefix: &str) -> PathBuf {
     let mut path = std::env::temp_dir();
@@ -88,7 +99,8 @@ async fn update_changes_value_and_updated_at() -> Result<()> {
         .await?
         .expect("KV entry should exist before update");
 
-    sleep(Duration::from_millis(10)).await;
+    let before_updated = ChronoDateTime::parse_from_rfc3339(&before.updated_at)?;
+    wait_for_timestamp_tick(&before_updated).await;
 
     dao.update("app.mode", "dev").await?;
 
@@ -97,7 +109,6 @@ async fn update_changes_value_and_updated_at() -> Result<()> {
         .await?
         .expect("KV entry should exist after update");
 
-    let before_updated = ChronoDateTime::parse_from_rfc3339(&before.updated_at)?;
     let after_updated = ChronoDateTime::parse_from_rfc3339(&after.updated_at)?;
 
     assert_eq!(after.value, "dev");

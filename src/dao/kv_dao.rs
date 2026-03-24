@@ -115,7 +115,7 @@ fn key_exists_with_conn(conn: &Connection, key: &str) -> anyhow::Result<bool> {
         params![key],
         |row| row.get(0),
     )
-    .context(format!("select kv_store existence failed for key {key}"))
+    .with_context(|| format!("select kv_store existence failed for key {key}"))
 }
 
 fn insert_with_conn(conn: &Connection, key: &str, value: &str) -> anyhow::Result<()> {
@@ -140,7 +140,7 @@ fn get_with_conn(conn: &Connection, key: &str) -> anyhow::Result<Option<KvEntry>
         KvDao::map_row,
     )
     .optional()
-    .context(format!("select kv_store entry failed for key {key}"))
+    .with_context(|| format!("select kv_store entry failed for key {key}"))
 }
 
 fn update_with_conn(conn: &Connection, key: &str, value: &str) -> anyhow::Result<()> {
@@ -158,7 +158,7 @@ fn update_with_conn(conn: &Connection, key: &str, value: &str) -> anyhow::Result
         .with_context(|| format!("update kv_store entry failed for key {key}"))?;
 
     if rows == 0 {
-        return Err(anyhow!("kv_store update affected no rows for key {key}"));
+        return Err(anyhow!("kv_store key not found for update: {key}"));
     }
 
     Ok(())
