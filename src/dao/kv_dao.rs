@@ -1,5 +1,5 @@
 use crate::dao::base_dao::BaseDao;
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use std::path::{Path, PathBuf};
@@ -48,7 +48,7 @@ impl KvDao {
         let value = value.to_owned();
 
         self.base
-            .run_blocking(move |conn| insert_with_conn(conn, &key, &value))
+            .run_blocking(move |conn| create_with_conn(conn, &key, &value))
             .await
     }
 
@@ -82,6 +82,23 @@ fn init_schema(base: &BaseDao) -> anyhow::Result<()> {
     })?;
 
     Ok(())
+}
+
+fn create_with_conn(conn: &Connection, key: &str, value: &str) -> anyhow::Result<()> {
+    if key_exists_with_conn(conn, key)? {
+        return Err(anyhow!("kv_store key already exists: {key}"));
+    }
+
+    insert_with_conn(conn, key, value)
+}
+
+fn key_exists_with_conn(conn: &Connection, key: &str) -> anyhow::Result<bool> {
+    conn.query_row(
+        "select exists(select 1 from kv_store where key = ?1)",
+        params![key],
+        |row| row.get(0),
+    )
+    .context(format!("select kv_store existence failed for key {key}"))
 }
 
 fn insert_with_conn(conn: &Connection, key: &str, value: &str) -> anyhow::Result<()> {
@@ -168,6 +185,21 @@ mod tests {
         assert!(!entry.created_at.is_empty());
         assert!(!entry.updated_at.is_empty());
         assert_eq!(entry.created_at, entry.updated_at);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_fails_when_key_already_exists() -> Result<()> {
+        let temp_db = TempDb::new("kv-duplicate");
+        let dao = KvDao::with_path(temp_db.path())?;
+
+        dao.create("app.mode", "prod").await?;
+
+        let err = dao.create("app.mode", "dev").await.unwrap_err();
+        let err_msg = err.to_string();
+
+        assert!(err_msg.contains("kv_store key already exists: app.mode"));
 
         Ok(())
     }
