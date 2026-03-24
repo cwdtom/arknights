@@ -1,8 +1,9 @@
 # Arknights
 
 Arknights is a Rust 2024 agent service that runs behind a Feishu/Lark bot.
-It receives text messages from Lark, plans work with DeepSeek, executes subtasks
-through a ReAct loop, and sends the final answer back to the configured user.
+It receives text messages from Lark, expands and plans work with DeepSeek,
+executes subtasks through a Plan -> ReAct -> Replan pipeline, and sends the
+final answer back through Lark.
 
 ## Features
 
@@ -10,11 +11,11 @@ through a ReAct loop, and sends the final answer back to the configured user.
 - Feishu/Lark websocket integration for inbound messages and outbound replies
 - Pluggable async tool system for system, internet, process-control, and memory tools
 - SQLite-backed chat history persistence
-- Optional write-only RAG indexing with `sqlite-vec` and `fastembed`
+- Optional RAG indexing and retrieval with `sqlite-vec` and `fastembed`
 
 ## Prerequisites
 
-- Rust 1.80+ (edition 2024)
+- A Rust toolchain with edition 2024 support
 - A Feishu/Lark app with websocket message delivery enabled
 - A DeepSeek API key
 - A Bocha API key if you want the internet search tools to work
@@ -74,13 +75,17 @@ cargo clippy
 ### Runtime Flow
 
 1. `src/main.rs` loads `.env`, initializes tracing, and opens the Lark websocket client.
-2. `src/im/lark.rs` receives text messages and starts a planner task for each request.
-3. `src/agent/plan.rs` builds a plan, optionally prepending recent chat history from SQLite.
+2. `src/im/lark.rs` receives text messages, sends status emoji replies, and serializes plan
+   execution with `PLAN_LOCK` while keeping the websocket receive loop responsive.
+3. `src/agent/plan.rs` expands the user goal, prepends recent chat history from SQLite, and
+   either answers directly or emits ordered subtasks with tool groups.
 4. `src/agent/re_act.rs` executes each subtask with the requested tool groups plus default
    `system`, `process_control`, and `memory` tools.
-5. When the planner reaches a final answer, the response is sent back through Lark and the
+5. `process_control_ask_user` can pause execution for a Lark reply, while `done` and `replan`
+   let the ReAct loop either finish a subtask or request a new plan.
+6. When the planner reaches a final answer, the response is sent back through Lark and the
    user/assistant pair is written to chat history.
-6. If `ARKNIGHTS_RAG_MODEL` is configured, chat history is indexed asynchronously into
+7. If `ARKNIGHTS_RAG_MODEL` is configured, chat history is indexed asynchronously into
    `chat_history_vec` using `sqlite-vec` and `fastembed`.
 
 ### Iteration Limits
@@ -116,7 +121,7 @@ src/
 ├── tool/
 │   ├── base_tool.rs           # `LlmTool` trait
 │   ├── internet.rs            # `internet_search`, `internet_curl`
-│   ├── memory.rs              # `memory_search_tool`
+│   ├── memory.rs              # `memory_search_tool`, `memory_list_tool`
 │   ├── process_control.rs     # `ask_user`, `done`, `replan`
 │   ├── system.rs              # `system_date`
 │   └── mod.rs                 # Tool registry
@@ -131,6 +136,7 @@ src/
 - `internet_search`
 - `internet_curl`
 - `memory_search_tool`
+- `memory_list_tool`
 - `process_control_ask_user`
 - `process_control_done`
 - `process_control_replan`
