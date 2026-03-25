@@ -1,4 +1,4 @@
-use crate::{agent, util};
+use crate::{agent, command, util};
 use chrono::Utc;
 use open_lark::openlark_client;
 use openlark_client::ws_client::{EventDispatcherHandler, LarkWsClient};
@@ -100,6 +100,22 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
         }
 
         info!("received message: {}", text);
+        // check process last timestamp, ignore outdate message
+        let cur_ts: i64 = match envelope.header.create_time.parse() {
+            Ok(ts) => ts,
+            Err(err) => {
+                error!("create_time format error: {:?}", err);
+                continue;
+            }
+        };
+        if last_ts > cur_ts {
+            // replay OnIt
+            async_reply_emoji(envelope.event.message.message_id.clone(), "OnIt".to_string());
+            continue;
+        } else {
+            last_ts = cur_ts;
+        }
+
         // replay get
         async_reply_emoji(envelope.event.message.message_id.clone(), "Get".to_string());
 
@@ -110,18 +126,18 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
             continue;
         }
 
-        // check process last timestamp, ignore outdate message
-        let cur_ts: i64 = match envelope.header.create_time.parse() {
-            Ok(ts) => ts,
-            Err(err) => {
-                error!("create_time format error: {:?}", err);
-                continue;
+        // if send start with `/`
+        if text.starts_with("/") {
+            match command::execute(text.clone()).await {
+                Ok(_) => {
+                    // replay done
+                    async_reply_emoji(envelope.event.message.message_id.clone(), "DONE".to_string());
+                }
+                Err(_) => {
+                    async_send("command not found.".to_string());
+                }
             }
-        };
-        if last_ts > cur_ts {
             continue;
-        } else {
-            last_ts = cur_ts;
         }
 
         // start plan in a separate task so the payload loop stays free to receive replies

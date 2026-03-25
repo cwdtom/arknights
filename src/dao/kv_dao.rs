@@ -43,15 +43,6 @@ impl KvDao {
         Ok(Self { base })
     }
 
-    pub async fn create(&self, key: &str, value: &str) -> anyhow::Result<()> {
-        let key = key.to_owned();
-        let value = value.to_owned();
-
-        self.base
-            .run_blocking(move |conn| create_with_conn(conn, &key, &value))
-            .await
-    }
-
     pub async fn get(&self, key: &str) -> anyhow::Result<Option<KvEntry>> {
         let key = key.to_owned();
 
@@ -60,12 +51,12 @@ impl KvDao {
             .await
     }
 
-    pub async fn update(&self, key: &str, value: &str) -> anyhow::Result<()> {
+    pub async fn save(&self, key: &str, value: &str) -> anyhow::Result<()> {
         let key = key.to_owned();
         let value = value.to_owned();
 
         self.base
-            .run_blocking(move |conn| update_with_conn(conn, &key, &value))
+            .run_blocking(move |conn| save_with_conn(conn, &key, &value))
             .await
     }
 
@@ -99,14 +90,6 @@ fn init_schema(base: &BaseDao) -> anyhow::Result<()> {
     })?;
 
     Ok(())
-}
-
-fn create_with_conn(conn: &Connection, key: &str, value: &str) -> anyhow::Result<()> {
-    if key_exists_with_conn(conn, key)? {
-        return Err(anyhow!("kv_store key already exists: {key}"));
-    }
-
-    insert_with_conn(conn, key, value)
 }
 
 fn key_exists_with_conn(conn: &Connection, key: &str) -> anyhow::Result<bool> {
@@ -143,22 +126,25 @@ fn get_with_conn(conn: &Connection, key: &str) -> anyhow::Result<Option<KvEntry>
     .with_context(|| format!("select kv_store entry failed for key {key}"))
 }
 
-fn update_with_conn(conn: &Connection, key: &str, value: &str) -> anyhow::Result<()> {
-    if !key_exists_with_conn(conn, key)? {
-        return Err(anyhow!("kv_store key not found for update: {key}"));
+fn save_with_conn(conn: &Connection, key: &str, value: &str) -> anyhow::Result<()> {
+    if key_exists_with_conn(conn, key)? {
+        return update_existing_with_conn(conn, key, value);
     }
 
-    let timestamp = current_timestamp();
+    insert_with_conn(conn, key, value)
+}
 
+fn update_existing_with_conn(conn: &Connection, key: &str, value: &str) -> anyhow::Result<()> {
+    let timestamp = current_timestamp();
     let rows = conn
         .execute(
             "update kv_store set value = ?1, updated_at = ?2 where key = ?3",
             params![value, timestamp, key],
         )
-        .with_context(|| format!("update kv_store entry failed for key {key}"))?;
+        .with_context(|| format!("save kv_store entry failed for key {key}"))?;
 
     if rows == 0 {
-        return Err(anyhow!("kv_store key not found for update: {key}"));
+        return Err(anyhow!("kv_store key not found during save: {key}"));
     }
 
     Ok(())

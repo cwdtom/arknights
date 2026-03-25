@@ -1,10 +1,12 @@
-use crate::agent::ReAct;
+use crate::agent::{ReAct, personal};
+use crate::llm::base_llm::{FunctionCall, ToolCall};
 use crate::llm::{LlmProvider, Message, Role};
 use crate::{im, llm, memory};
 use anyhow::anyhow;
+use chrono::Local;
+use rand::distr::{Alphanumeric, SampleString};
 use serde::Deserialize;
 use std::collections::HashSet;
-use chrono::Local;
 use tracing::error;
 
 const MAX_TURNS: u8 = 20;
@@ -12,8 +14,9 @@ const PLAN_PROMPT: &str = r#"
 You are the PLAN or REPLAN node in a Plan-ReAct-Replan pipeline.
 
 ## Role
-First, Expand user's colloquial question into a complete and unambiguous one.
-Then given the expanded question and any previous execution results, produce a structured plan that guides downstream ReAct nodes to find the answer.
+First, expand user's colloquial question into a complete and unambiguous one.
+Second, select appropriate tools and put them into `tools`.
+Then, given the expanded question and any previous execution results, produce a structured plan that guides downstream ReAct nodes to find the answer.
 
 ## Available Tools
 - system: System-related info or operations
@@ -35,15 +38,16 @@ Then given the expanded question and any previous execution results, produce a s
 5. Each subtask MUST contain the necessary information and be able to be completed independently.
 
 ## Language Rule
-`content`, `expand_goal` and every `task` field must be written in the same language as the user's message.
+`content`, `expand_goal` and every `plan` field must be written in the same language as the user's message.
 
 ## Output Format Json
 {
   "expand_goal": "<expanded question>",
   "plans": [
-    {"task": "<subtask description>", "tools": ["internet"]},
-    {"task": "<subtask description>", "tools": []}
+    "<subtask description>",
+    "<subtask description>"
   ],
+  "tools": ["internet", "memory"],
   "content": "<final answer>",
   "is_done": false
 }
@@ -52,7 +56,8 @@ Then given the expanded question and any previous execution results, produce a s
 /// agent plan module
 pub struct Plan {
     question: String,
-    plans: Vec<Task>,
+    plans: Vec<String>,
+    tools: HashSet<String>,
     llm: Box<dyn LlmProvider>,
     // if first plan can answer
     answer: Option<String>,
@@ -60,17 +65,12 @@ pub struct Plan {
 
 #[derive(Deserialize, Debug)]
 pub struct PlanResp {
-    plans: Vec<Task>,
+    plans: Vec<String>,
+    tools: HashSet<String>,
     #[serde(default)]
     is_done: bool,
     content: String,
     expand_goal: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct Task {
-    task: String,
-    tools: HashSet<String>,
 }
 
 impl Plan {
@@ -101,6 +101,7 @@ impl Plan {
                     return Ok(Plan {
                         question: plan_resp.expand_goal,
                         plans: vec![],
+                        tools: HashSet::new(),
                         llm: Box::new(llm),
                         answer: Some(plan_resp.content),
                     });
@@ -112,6 +113,7 @@ impl Plan {
                 Ok(Plan {
                     question: plan_resp.expand_goal,
                     plans: plan_resp.plans,
+                    tools: plan_resp.tools,
                     llm: Box::new(llm),
                     answer: None,
                 })
@@ -122,15 +124,7 @@ impl Plan {
 
     pub async fn execute(&mut self) -> anyhow::Result<()> {
         if let Some(answer) = self.answer.take() {
-            match memory::chat_history_service::save_chat_history(self.question.as_str(), &answer)
-                .await
-            {
-                Ok(_) => {}
-                Err(err) => error!("Failed to save chat history: {}", err),
-            }
-
-            im::lark::async_send(answer);
-            return Ok(());
+            return send_final_answer(self.question.clone(), answer).await;
         }
 
         let mut re_act_history: Vec<Message> = vec![];
@@ -138,19 +132,22 @@ impl Plan {
         for _ in 1..=MAX_TURNS {
             for plan in &self.plans {
                 // set sub task
-                let sub_message = Message::new(Role::User, plan.task.clone());
+                let sub_message = Message::new(Role::User, plan.clone());
                 re_act_history.push(sub_message);
 
                 // init reAct
-                let mut re_act = ReAct::new(re_act_history.clone(), plan.tools.clone())?;
+                let mut re_act = ReAct::new(re_act_history.clone(), self.tools.clone())?;
                 let re_act_resp = re_act.execute().await?;
-                // set sub answer
-                let answer = Message::new(Role::User, re_act_resp.content);
-                self.llm.push_message(answer.clone());
-                re_act_history.push(answer.clone());
+                // set sub answer, fake tool call
+                let (tool_call, tool_result) =
+                    build_tool_call_message(plan.clone(), re_act_resp.content);
+                self.llm.push_message(tool_call.clone());
+                self.llm.push_message(tool_result.clone());
+                re_act_history.push(tool_call.clone());
+                re_act_history.push(tool_result.clone());
 
                 // send reAct answer
-                im::lark::async_send(plan.task.clone() + " Done");
+                im::lark::async_send(plan.clone() + " Done");
 
                 if re_act_resp.needs_replan {
                     break;
@@ -165,26 +162,14 @@ impl Plan {
                     self.question = plan_resp.expand_goal.clone();
 
                     if plan_resp.is_done {
-                        // save chat history
-                        match memory::chat_history_service::save_chat_history(
-                            self.question.as_str(),
-                            plan_resp.content.as_str(),
-                        )
-                        .await
-                        {
-                            Ok(_) => {}
-                            Err(err) => error!("Failed to save chat history: {}", err),
-                        }
-
-                        // send final answer
-                        im::lark::async_send(plan_resp.content);
-
+                        send_final_answer(self.question.clone(), plan_resp.content).await?;
                         return Ok(());
                     } else {
                         // update plans
                         self.llm.push_message(choice.message.clone());
                         self.plans = plan_resp.plans;
                         self.question = plan_resp.expand_goal;
+                        self.tools = plan_resp.tools;
 
                         continue;
                     }
@@ -195,6 +180,57 @@ impl Plan {
 
         Err(anyhow!("plan exceeded max turns ({MAX_TURNS})"))
     }
+}
+
+async fn send_final_answer(question: String, content: String) -> anyhow::Result<()> {
+    // save chat history
+    match memory::chat_history_service::save_chat_history(question.as_str(), content.as_str()).await {
+        Ok(_) => {}
+        Err(err) => error!("Failed to save chat history: {}", err),
+    }
+
+    match personal::personal_message(content.clone()).await {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            error!("Failed to personalize message: {}", err);
+            im::lark::async_send(content);
+            Ok(())
+        }
+    }
+}
+
+/// fake build tool call, return tool call and tool result
+fn build_tool_call_message(question: String, result: String) -> (Message, Message) {
+    let id = format!(
+        "call_00_{}",
+        Alphanumeric.sample_string(&mut rand::rng(), 24)
+    );
+    let function_call = FunctionCall {
+        name: "reAct".to_string(),
+        arguments: serde_json::json!({
+            "question": question
+        })
+        .to_string(),
+    };
+    let tool_call = ToolCall {
+        id: id.clone(),
+        r#type: "function".to_string(),
+        function: function_call,
+    };
+    let tool_call_message = Message {
+        role: Role::Assistant,
+        content: "".to_string(),
+        tool_call_id: None,
+        tool_calls: Some(vec![tool_call]),
+    };
+    let tool_result_message = Message {
+        role: Role::Tool,
+        content: result,
+        tool_call_id: Some(id),
+        tool_calls: None,
+    };
+
+    (tool_call_message, tool_result_message)
 }
 
 #[cfg(test)]

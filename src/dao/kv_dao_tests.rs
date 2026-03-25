@@ -52,16 +52,16 @@ impl Drop for TempDb {
 }
 
 #[tokio::test]
-async fn create_then_get_returns_entry() -> Result<()> {
+async fn save_then_get_returns_entry() -> Result<()> {
     let temp_db = TempDb::new("kv");
     let dao = KvDao::with_path(temp_db.path())?;
 
-    dao.create("app.mode", "prod").await?;
+    dao.save("app.mode", "prod").await?;
 
     let entry = dao
         .get("app.mode")
         .await?
-        .expect("KV entry not found after create");
+        .expect("KV entry not found after save");
 
     assert_eq!(entry.key, "app.mode");
     assert_eq!(entry.value, "prod");
@@ -73,41 +73,26 @@ async fn create_then_get_returns_entry() -> Result<()> {
 }
 
 #[tokio::test]
-async fn create_fails_when_key_already_exists() -> Result<()> {
-    let temp_db = TempDb::new("kv-duplicate");
+async fn save_updates_existing_entry() -> Result<()> {
+    let temp_db = TempDb::new("kv-save-update");
     let dao = KvDao::with_path(temp_db.path())?;
 
-    dao.create("app.mode", "prod").await?;
-
-    let err = dao.create("app.mode", "dev").await.unwrap_err();
-    let err_msg = err.to_string();
-
-    assert!(err_msg.contains("kv_store key already exists: app.mode"));
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn update_changes_value_and_updated_at() -> Result<()> {
-    let temp_db = TempDb::new("kv-update");
-    let dao = KvDao::with_path(temp_db.path())?;
-
-    dao.create("app.mode", "prod").await?;
+    dao.save("app.mode", "prod").await?;
 
     let before = dao
         .get("app.mode")
         .await?
-        .expect("KV entry should exist before update");
+        .expect("KV entry should exist before second save");
 
     let before_updated = ChronoDateTime::parse_from_rfc3339(&before.updated_at)?;
     wait_for_timestamp_tick(&before_updated).await;
 
-    dao.update("app.mode", "dev").await?;
+    dao.save("app.mode", "dev").await?;
 
     let after = dao
         .get("app.mode")
         .await?
-        .expect("KV entry should exist after update");
+        .expect("KV entry should exist after second save");
 
     let after_updated = ChronoDateTime::parse_from_rfc3339(&after.updated_at)?;
 
@@ -119,24 +104,11 @@ async fn update_changes_value_and_updated_at() -> Result<()> {
 }
 
 #[tokio::test]
-async fn update_fails_when_key_missing() -> Result<()> {
-    let temp_db = TempDb::new("kv-update-missing");
-    let dao = KvDao::with_path(temp_db.path())?;
-
-    let err = dao.update("missing.key", "dev").await.unwrap_err();
-    let err_msg = err.to_string();
-
-    assert!(err_msg.contains("kv_store key not found for update: missing.key"));
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn delete_removes_entry() -> Result<()> {
     let temp_db = TempDb::new("kv-delete");
     let dao = KvDao::with_path(temp_db.path())?;
 
-    dao.create("app.mode", "prod").await?;
+    dao.save("app.mode", "prod").await?;
 
     dao.delete("app.mode").await?;
 
@@ -164,7 +136,7 @@ async fn delete_fails_when_key_missing() -> Result<()> {
 async fn in_memory_database_reuses_same_connection() -> Result<()> {
     let dao = KvDao::with_path(":memory:")?;
 
-    dao.create("app.mode", "prod").await?;
+    dao.save("app.mode", "prod").await?;
 
     let entry = dao
         .get("app.mode")

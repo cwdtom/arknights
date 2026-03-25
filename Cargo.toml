@@ -29,3 +29,4 @@ sqlite-vec = "0.1.7"
 zerocopy = "0.8"
 # rag
 fastembed = "5.13.0"
+rand = "0.9.2"

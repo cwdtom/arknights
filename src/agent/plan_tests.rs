@@ -8,7 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn plan_resp_defaults_is_done_to_false() {
     let json = r#"{
         "expand_goal": "collect context with explicit scope",
-        "plans": [{"task":"collect context","tools":["internet"]}],
+        "plans": ["collect context"],
+        "tools": ["internet"],
         "content": ""
     }"#;
 
@@ -17,10 +18,10 @@ fn plan_resp_defaults_is_done_to_false() {
     assert_eq!(resp.content, "");
     assert_eq!(resp.expand_goal, "collect context with explicit scope");
     assert_eq!(resp.plans.len(), 1);
-    assert_eq!(resp.plans[0].task, "collect context");
+    assert_eq!(resp.plans[0], "collect context");
     let mut tools = HashSet::new();
     tools.insert(String::from("internet"));
-    assert_eq!(resp.plans[0].tools, tools);
+    assert_eq!(resp.tools, tools);
 }
 
 #[test]
@@ -28,6 +29,7 @@ fn plan_resp_accepts_done_payload() {
     let json = r#"{
         "expand_goal": "final answer with explicit scope",
         "plans": [],
+        "tools": [],
         "content": "final answer",
         "is_done": true
     }"#;
@@ -51,6 +53,7 @@ async fn execute_persists_latest_expand_goal_after_replan() {
         r#"{{
             "expand_goal": "{final_question}",
             "plans": [],
+            "tools": [],
             "content": "{final_answer}",
             "is_done": true
         }}"#
@@ -58,6 +61,7 @@ async fn execute_persists_latest_expand_goal_after_replan() {
     let mut plan = Plan {
         question: initial_question,
         plans: vec![],
+        tools: HashSet::new(),
         llm: Box::new(TestLlm::new(vec![response])),
         answer: None,
     };
@@ -119,8 +123,11 @@ fn plan_chat_response(content: &str) -> ChatResponse {
 
 fn disable_rag_and_set_lark_env() {
     rag_embedder::clear_test_embedding_mode();
+    let db_path = std::env::temp_dir().join(format!("{}.db", unique_token("kv")));
     unsafe {
         std::env::remove_var("ARKNIGHTS_RAG_MODEL");
+        std::env::remove_var("DEEPSEEK_API_KEY");
+        std::env::set_var("ARKNIGHTS_DB_PATH", db_path);
         std::env::set_var("LARK_APP_ID", "test-app-id");
         std::env::set_var("LARK_APP_SECRET", "test-app-secret");
         std::env::set_var("LARK_USER_OPEN_ID", "test-open-id");

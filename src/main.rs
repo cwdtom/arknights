@@ -10,6 +10,8 @@ pub mod llm;
 pub mod memory;
 pub mod tool;
 pub mod util;
+mod kv_service;
+mod command;
 
 #[tokio::main]
 async fn main() {
