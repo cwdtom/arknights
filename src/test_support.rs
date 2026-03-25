@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 const PERSONAL_KEY: &str = "PERSONAL";
+const USER_PROFILE_KEY: &str = "USER_PROFILE";
 const TEST_LARK_APP_ID: &str = "test-app-id";
 const TEST_LARK_APP_SECRET: &str = "test-app-secret";
 const TEST_LARK_USER_OPEN_ID: &str = "test-open-id";
@@ -57,10 +58,18 @@ pub(crate) fn test_db_path() -> &'static Path {
 }
 
 pub(crate) async fn clear_personal_value() -> anyhow::Result<()> {
+    clear_kv_value(PERSONAL_KEY).await
+}
+
+pub(crate) async fn clear_user_profile() -> anyhow::Result<()> {
+    clear_kv_value(USER_PROFILE_KEY).await
+}
+
+async fn clear_kv_value(key: &str) -> anyhow::Result<()> {
     let dao = KvDao::new()?;
 
-    if dao.get(PERSONAL_KEY).await?.is_some() {
-        dao.delete(PERSONAL_KEY).await?;
+    if dao.get(key).await?.is_some() {
+        dao.delete(key).await?;
     }
 
     Ok(())

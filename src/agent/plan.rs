@@ -1,7 +1,7 @@
 use crate::agent::{ReAct, personal};
 use crate::llm::base_llm::{FunctionCall, ToolCall};
 use crate::llm::{LlmProvider, Message, Role};
-use crate::{im, llm, memory};
+use crate::{im, kv_service, llm, memory};
 use anyhow::anyhow;
 use chrono::Local;
 use rand::distr::{Alphanumeric, SampleString};
@@ -14,7 +14,7 @@ const PLAN_PROMPT: &str = r#"
 You are the PLAN or REPLAN node in a Plan-ReAct-Replan pipeline.
 
 ## Role
-First, expand user's colloquial question into a complete and unambiguous one.
+First, from `user profile` phrase expand user's colloquial question into a complete and unambiguous one.
 Second, select appropriate tools and put them into `tools`.
 Then, given the expanded question and any previous execution results, produce a structured plan that guides downstream ReAct nodes to find the answer.
 
@@ -75,8 +75,17 @@ pub struct PlanResp {
 
 impl Plan {
     pub async fn new(user_message: String) -> anyhow::Result<Self> {
+        // append user profile into system prompt
+        let system_prompt = format!(
+            r#"{}
+
+            ## User profile
+            {}
+            "#,
+            PLAN_PROMPT, kv_service::get_user_profile().await?);
+
         // set system prompt
-        let system = Message::new(Role::System, PLAN_PROMPT.to_string());
+        let system = Message::new(Role::System, system_prompt);
         let mut messages = vec![system];
 
         // set history chat

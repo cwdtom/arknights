@@ -19,6 +19,8 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         let curl = internet::Curl::new();
         let memory_search_tool = memory::SearchTool::new();
         let memory_list_tool = memory::ListTool::new();
+        let memory_get_user_profile_tool = memory::GetUserProfileTool::new();
+        let memory_rewrite_user_profile_tool = memory::RewriteUserProfileTool::new();
 
         let mut map: HashMap<String, Box<dyn LlmTool + Send + Sync>> = HashMap::new();
         map.insert(date.base_tool.name.clone(), Box::new(date));
@@ -34,6 +36,14 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         map.insert(
             memory_list_tool.base_tool.name.clone(),
             Box::new(memory_list_tool),
+        );
+        map.insert(
+            memory_get_user_profile_tool.base_tool.name.clone(),
+            Box::new(memory_get_user_profile_tool),
+        );
+        map.insert(
+            memory_rewrite_user_profile_tool.base_tool.name.clone(),
+            Box::new(memory_rewrite_user_profile_tool),
         );
 
         map
@@ -78,6 +88,8 @@ mod tests {
         assert!(!tools.is_empty());
         let names: Vec<_> = tools.iter().map(|t| t.deep_seek_schema().name).collect();
         assert!(names.contains(&"system_date".to_string()));
+        assert!(names.contains(&"memory_get_user_profile".to_string()));
+        assert!(names.contains(&"memory_rewrite_user_profile".to_string()));
     }
 
     #[test]
@@ -93,5 +105,20 @@ mod tests {
     fn get_tool_by_group_nonexistent() {
         let tools = get_tool_by_group("nonexistent");
         assert!(tools.is_empty());
+    }
+
+    #[test]
+    fn get_tool_returns_some_for_user_profile_tools() {
+        assert!(get_tool("memory_get_user_profile").is_some());
+        assert!(get_tool("memory_rewrite_user_profile").is_some());
+    }
+
+    #[test]
+    fn get_tool_by_group_memory_includes_user_profile_tools() {
+        let tools = get_tool_by_group("memory");
+        let names: Vec<_> = tools.iter().map(|t| t.deep_seek_schema().name).collect();
+
+        assert!(names.contains(&"memory_get_user_profile".to_string()));
+        assert!(names.contains(&"memory_rewrite_user_profile".to_string()));
     }
 }
