@@ -116,8 +116,8 @@ impl Plan {
                     });
                 }
 
-                // send replans
-                im::lark::async_send(plan_resp.expand_goal.clone());
+                // send expand goal
+                im::base_im::async_send(plan_resp.expand_goal.clone());
 
                 Ok(Plan {
                     question: plan_resp.expand_goal,
@@ -156,7 +156,7 @@ impl Plan {
                 re_act_history.push(tool_result.clone());
 
                 // send reAct answer
-                im::lark::async_send(plan.clone() + " Done");
+                im::base_im::async_send(plan.clone() + " Done");
 
                 if re_act_resp.needs_replan {
                     break;
@@ -203,7 +203,7 @@ async fn send_final_answer(question: String, content: String) -> anyhow::Result<
         Ok(_) => Ok(()),
         Err(err) => {
             error!("Failed to personalize message: {}", err);
-            im::lark::async_send(content);
+            im::base_im::async_send(content);
             Ok(())
         }
     }

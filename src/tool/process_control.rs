@@ -1,5 +1,4 @@
-use crate::im::lark;
-use crate::llm;
+use crate::{im, llm};
 use crate::llm::base_llm::{Parameters, ToolCall};
 use crate::tool::base_tool::{BaseTool, LlmTool};
 use serde::{Deserialize, Serialize};
@@ -49,7 +48,7 @@ impl LlmTool for AskUser {
             }
         };
 
-        lark::ask_user(args.question).await.unwrap_or_else(|e| {
+        im::base_im::ask_user(args.question).await.unwrap_or_else(|e| {
             error!("ask_user failed: {:?}", e);
             format!("Error: {}", e)
         })

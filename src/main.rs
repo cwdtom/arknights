@@ -35,6 +35,9 @@ async fn main() {
         )
         .init();
 
+    // lark init
+    im::base_im::init_lark();
+
     // lark wss
     im::lark::build_wss().await.expect("building wss error");
 

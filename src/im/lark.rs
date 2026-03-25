@@ -1,3 +1,5 @@
+use crate::im::base_im;
+use crate::im::base_im::Im;
 use crate::{agent, command, util};
 use chrono::Utc;
 use open_lark::openlark_client;
@@ -110,7 +112,7 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
         };
         if last_ts > cur_ts {
             // replay OnIt
-            async_reply_emoji(
+            base_im::async_reply_emoji(
                 envelope.event.message.message_id.clone(),
                 "OnIt".to_string(),
             );
@@ -120,7 +122,7 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
         }
 
         // replay get
-        async_reply_emoji(envelope.event.message.message_id.clone(), "Get".to_string());
+        base_im::async_reply_emoji(envelope.event.message.message_id.clone(), "Get".to_string());
 
         // if there is a pending ask_user, route the reply to it
         let pending = PENDING_ASK.lock().await.take();
@@ -134,13 +136,13 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
             match command::execute(text.clone()).await {
                 Ok(_) => {
                     // replay done
-                    async_reply_emoji(
+                    base_im::async_reply_emoji(
                         envelope.event.message.message_id.clone(),
                         "DONE".to_string(),
                     );
                 }
                 Err(_) => {
-                    async_send("command not found.".to_string());
+                    base_im::async_send("command not found.".to_string());
                 }
             }
             continue;
@@ -158,20 +160,17 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
                 }
                 Err(e) => {
                     error!("plan init error: {:?}", e);
-                    async_send("critical error occurred".to_string());
+                    base_im::async_send("critical error occurred".to_string());
                 }
             }
 
             // replay done
-            async_reply_emoji(envelope.event.message.message_id, "DONE".to_string());
+            base_im::async_reply_emoji(envelope.event.message.message_id, "DONE".to_string());
         });
     }
 }
 
-static LARK: LazyLock<tokio::sync::Mutex<Lark>> =
-    LazyLock::new(|| tokio::sync::Mutex::new(Lark::new()));
-
-struct Lark {
+pub(crate) struct Lark {
     access_token: String,
     // timestamp
     update_time: i64,
@@ -183,7 +182,7 @@ struct AccessTokenResp {
 }
 
 impl Lark {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Lark {
             access_token: "".to_string(),
             update_time: 0,
@@ -210,84 +209,84 @@ impl Lark {
     }
 }
 
-pub async fn send(content: String) -> anyhow::Result<()> {
-    // build content
-    let message_content = json!({
-        "text": content,
-    });
+#[async_trait::async_trait]
+impl Im for Lark {
+    async fn send(&mut self, content: String) -> anyhow::Result<()> {
+        // build content
+        let message_content = json!({
+            "text": content,
+        });
 
-    // build message req
-    let message_request = json!({
-        "receive_id": LARK_USER_OPEN_ID.clone(),
-        "content": message_content.to_string(),
-        "msg_type": "text"
-    });
+        // build message req
+        let message_request = json!({
+            "receive_id": LARK_USER_OPEN_ID.clone(),
+            "content": message_content.to_string(),
+            "msg_type": "text"
+        });
 
-    info!("Sending request: {:?}", message_request);
+        info!("Sending request: {:?}", message_request);
 
-    // send
-    let raw = util::http_utils::post(
-        SEND_URL,
-        &LARK.lock().await.get_access_token().await?,
-        &message_request,
-    )
-    .await?;
+        // send
+        let raw = util::http_utils::post(
+            SEND_URL,
+            self.get_access_token().await?.as_str(),
+            &message_request,
+        )
+        .await?;
 
-    info!("Sent response: {}", raw);
-    Ok(())
-}
+        info!("Sent response: {}", raw);
+        Ok(())
+    }
 
-pub fn async_send(content: String) {
-    tokio::spawn(send(content));
-}
+    async fn ask_user(&mut self, question: String) -> anyhow::Result<String> {
+        let (tx, rx) = oneshot::channel::<String>();
+        PENDING_ASK.lock().await.replace(tx);
 
-/// Send a question to the user via lark and wait for their reply (5 min timeout).
-pub async fn ask_user(question: String) -> anyhow::Result<String> {
-    let (tx, rx) = oneshot::channel::<String>();
-    PENDING_ASK.lock().await.replace(tx);
+        match self.send(question).await {
+            Ok(_) => {}
+            Err(err) => {
+                PENDING_ASK.lock().await.take();
+                return Err(err);
+            }
+        };
 
-    send(question).await?;
-
-    match tokio::time::timeout(Duration::from_secs(300), rx).await {
-        Ok(Ok(reply)) => Ok(reply),
-        Ok(Err(_)) => {
-            anyhow::bail!("ask_user channel closed unexpectedly")
-        }
-        Err(_) => {
-            // timeout — clean up the pending sender
-            PENDING_ASK.lock().await.take();
-            anyhow::bail!("ask_user timed out: no reply within 5 minutes")
+        match tokio::time::timeout(Duration::from_secs(300), rx).await {
+            Ok(Ok(reply)) => Ok(reply),
+            Ok(Err(_)) => {
+                anyhow::bail!("ask_user channel closed unexpectedly")
+            }
+            Err(_) => {
+                // timeout — clean up the pending sender
+                PENDING_ASK.lock().await.take();
+                anyhow::bail!("ask_user timed out: no reply within 5 minutes")
+            }
         }
     }
-}
 
-pub async fn reply_emoji(message_id: String, emoji: String) -> anyhow::Result<()> {
-    let base_url = format!(
-        "https://open.feishu.cn/open-apis/im/v1/messages/{}/reactions",
-        message_id
-    );
-    let body = json!({
-        "reaction_type": {
-          "emoji_type": emoji
-        }
-    });
+    async fn reply_emoji(&mut self, message_id: String, emoji: String) -> anyhow::Result<()> {
+        let base_url = format!(
+            "https://open.feishu.cn/open-apis/im/v1/messages/{}/reactions",
+            message_id
+        );
+        let body = json!({
+            "reaction_type": {
+              "emoji_type": emoji
+            }
+        });
 
-    info!("Reply emoji request: {:?}", body);
+        info!("Reply emoji request: {:?}", body);
 
-    // send
-    let raw = util::http_utils::post(
-        base_url.as_str(),
-        &LARK.lock().await.get_access_token().await?,
-        &body,
-    )
-    .await?;
+        // send
+        let raw = util::http_utils::post(
+            base_url.as_str(),
+            self.get_access_token().await?.as_str(),
+            &body,
+        )
+        .await?;
 
-    info!("Reply emoji response: {}", raw);
-    Ok(())
-}
-
-pub fn async_reply_emoji(message_id: String, emoji: String) {
-    tokio::spawn(reply_emoji(message_id, emoji));
+        info!("Reply emoji response: {}", raw);
+        Ok(())
+    }
 }
 
 #[cfg(test)]

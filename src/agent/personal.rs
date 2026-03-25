@@ -69,7 +69,7 @@ pub async fn personal_message(message: String) -> anyhow::Result<()> {
 
             // send personal answers
             for content in personal_resp.contents {
-                im::lark::async_send(content);
+                im::base_im::async_send(content);
             }
 
             Ok(())
