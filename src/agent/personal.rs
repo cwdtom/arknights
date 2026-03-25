@@ -35,7 +35,7 @@ Task: rewrite the input text in a specified character’s style while strictly p
 
 #[derive(Debug, Deserialize)]
 struct PersonalResp {
-    contents: Vec<String>
+    contents: Vec<String>,
 }
 
 pub async fn personal_message(message: String) -> anyhow::Result<()> {

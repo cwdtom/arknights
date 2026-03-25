@@ -184,7 +184,8 @@ impl Plan {
 
 async fn send_final_answer(question: String, content: String) -> anyhow::Result<()> {
     // save chat history
-    match memory::chat_history_service::save_chat_history(question.as_str(), content.as_str()).await {
+    match memory::chat_history_service::save_chat_history(question.as_str(), content.as_str()).await
+    {
         Ok(_) => {}
         Err(err) => error!("Failed to save chat history: {}", err),
     }

@@ -1,6 +1,6 @@
 use super::*;
 use crate::llm::ChatResponse;
-use crate::memory::rag_embedder;
+use crate::test_support;
 use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -43,7 +43,7 @@ fn plan_resp_accepts_done_payload() {
 
 #[tokio::test]
 async fn execute_persists_latest_expand_goal_after_replan() {
-    let _guard = rag_embedder::TEST_ENV_LOCK.lock().unwrap();
+    let _guard = test_support::app_test_guard();
     disable_rag_and_set_lark_env();
     let token = unique_token("replan");
     let initial_question = format!("initial-question-{token}");
@@ -122,16 +122,8 @@ fn plan_chat_response(content: &str) -> ChatResponse {
 }
 
 fn disable_rag_and_set_lark_env() {
-    rag_embedder::clear_test_embedding_mode();
-    let db_path = std::env::temp_dir().join(format!("{}.db", unique_token("kv")));
-    unsafe {
-        std::env::remove_var("ARKNIGHTS_RAG_MODEL");
-        std::env::remove_var("DEEPSEEK_API_KEY");
-        std::env::set_var("ARKNIGHTS_DB_PATH", db_path);
-        std::env::set_var("LARK_APP_ID", "test-app-id");
-        std::env::set_var("LARK_APP_SECRET", "test-app-secret");
-        std::env::set_var("LARK_USER_OPEN_ID", "test-open-id");
-    }
+    test_support::configure_app_test_env();
+    test_support::disable_rag_for_test();
 }
 
 fn unique_token(label: &str) -> String {

@@ -110,7 +110,10 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
         };
         if last_ts > cur_ts {
             // replay OnIt
-            async_reply_emoji(envelope.event.message.message_id.clone(), "OnIt".to_string());
+            async_reply_emoji(
+                envelope.event.message.message_id.clone(),
+                "OnIt".to_string(),
+            );
             continue;
         } else {
             last_ts = cur_ts;
@@ -131,7 +134,10 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
             match command::execute(text.clone()).await {
                 Ok(_) => {
                     // replay done
-                    async_reply_emoji(envelope.event.message.message_id.clone(), "DONE".to_string());
+                    async_reply_emoji(
+                        envelope.event.message.message_id.clone(),
+                        "DONE".to_string(),
+                    );
                 }
                 Err(_) => {
                     async_send("command not found.".to_string());

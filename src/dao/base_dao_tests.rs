@@ -1,13 +1,11 @@
 use super::*;
+use crate::test_support;
 use std::fs;
-use std::sync::LazyLock;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 #[tokio::test]
 async fn new_reads_env_path_and_creates_db_file() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = test_support::lock_test_env();
     let path = unique_db_path_with_parent("env");
     let original = std::env::var(DB_PATH_ENV_VAR).ok();
 

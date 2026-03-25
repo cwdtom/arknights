@@ -12,9 +12,11 @@ use tracing::info;
 const DB_PATH_ENV_VAR: &str = "ARKNIGHTS_DB_PATH";
 const DEFAULT_DB_PATH: &str = "arknights.db";
 static SQLITE_VEC_REGISTERED: OnceLock<anyhow::Result<()>> = OnceLock::new();
-type SqliteExtensionEntryPoint =
-    unsafe extern "C" fn(*mut sqlite3, *mut *mut std::ffi::c_char, *const sqlite3_api_routines)
-        -> std::ffi::c_int;
+type SqliteExtensionEntryPoint = unsafe extern "C" fn(
+    *mut sqlite3,
+    *mut *mut std::ffi::c_char,
+    *const sqlite3_api_routines,
+) -> std::ffi::c_int;
 
 #[derive(Clone)]
 pub struct BaseDao {

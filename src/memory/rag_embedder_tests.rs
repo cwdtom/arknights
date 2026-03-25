@@ -1,10 +1,18 @@
 use super::*;
+use crate::test_support;
 use std::fs;
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
+fn rag_embedder_source_keeps_only_external_test_module_gate() {
+    let source = include_str!("rag_embedder.rs");
+    assert_eq!(source.matches("#[cfg(test)]").count(), 1);
+}
+
+#[test]
 fn rag_config_defaults_to_disabled_when_model_is_unset() {
-    let _guard = TEST_ENV_LOCK.lock().unwrap();
+    let _guard = test_support::lock_test_env();
     unsafe {
         std::env::remove_var(RAG_MODEL_ENV_VAR);
     }
@@ -14,7 +22,7 @@ fn rag_config_defaults_to_disabled_when_model_is_unset() {
 
 #[test]
 fn rag_config_defaults_to_disabled_when_model_is_empty() {
-    let _guard = TEST_ENV_LOCK.lock().unwrap();
+    let _guard = test_support::lock_test_env();
     unsafe {
         std::env::set_var(RAG_MODEL_ENV_VAR, "   ");
     }
@@ -24,7 +32,7 @@ fn rag_config_defaults_to_disabled_when_model_is_empty() {
 
 #[test]
 fn rag_config_reads_supported_model_and_project_cache_dir() {
-    let _guard = TEST_ENV_LOCK.lock().unwrap();
+    let _guard = test_support::lock_test_env();
     unsafe {
         std::env::set_var(RAG_MODEL_ENV_VAR, "BAAI/bge-small-en-v1.5");
     }
@@ -41,7 +49,7 @@ fn rag_config_reads_supported_model_and_project_cache_dir() {
 
 #[test]
 fn rag_config_rejects_invalid_model() {
-    let _guard = TEST_ENV_LOCK.lock().unwrap();
+    let _guard = test_support::lock_test_env();
     unsafe {
         std::env::set_var(RAG_MODEL_ENV_VAR, "unsupported-model");
     }
@@ -103,43 +111,37 @@ fn detect_local_model_bundle_reports_missing_tokenizer_files() {
 }
 
 #[tokio::test]
-async fn embed_text_uses_test_override_without_loading_model() {
-    let _guard = TEST_ENV_LOCK.lock().unwrap();
-    clear_test_embedding_mode();
-    set_test_embedding_success(vec![0.1; 384]);
-
-    let embedding = embed_text(
+async fn embed_text_uses_backend_override_without_loading_model() {
+    let _guard = test_support::lock_test_env();
+    let backend = FakeRagEmbedder::success(vec![0.1; 384]);
+    let embedding = embed_text_with_backend(
         RagRuntimeConfig {
             model: RagModel::BgeSmallEnV15,
             cache_dir: project_fastembed_cache_dir(),
         },
         "hello".to_string(),
+        &backend,
     )
     .await
     .unwrap();
-    assert_eq!(embedding.len(), 384);
-
-    clear_test_embedding_mode();
+    assert_eq!(embedding, vec![0.1; 384]);
 }
 
 #[tokio::test]
-async fn embed_text_returns_test_failure_override() {
-    let _guard = TEST_ENV_LOCK.lock().unwrap();
-    clear_test_embedding_mode();
-    set_test_embedding_failure("forced failure");
-
-    let err = embed_text(
+async fn embed_text_returns_backend_failure() {
+    let _guard = test_support::lock_test_env();
+    let backend = FakeRagEmbedder::failure("forced failure");
+    let err = embed_text_with_backend(
         RagRuntimeConfig {
             model: RagModel::BgeSmallEnV15,
             cache_dir: project_fastembed_cache_dir(),
         },
         "hello".to_string(),
+        &backend,
     )
     .await
     .unwrap_err();
     assert!(err.to_string().contains("forced failure"));
-
-    clear_test_embedding_mode();
 }
 
 fn unique_temp_dir(prefix: &str) -> PathBuf {
@@ -173,4 +175,37 @@ fn write_bundle_files(dir: &Path, root_model: bool) {
 
 fn cleanup_dir(dir: &Path) {
     let _ = fs::remove_dir_all(dir);
+}
+
+struct FakeRagEmbedder {
+    result: Mutex<Option<anyhow::Result<Vec<f32>>>>,
+}
+
+impl FakeRagEmbedder {
+    fn success(embedding: Vec<f32>) -> Self {
+        Self {
+            result: Mutex::new(Some(Ok(embedding))),
+        }
+    }
+
+    fn failure(message: &str) -> Self {
+        Self {
+            result: Mutex::new(Some(Err(anyhow::anyhow!(message.to_string())))),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl RagEmbeddingBackend for FakeRagEmbedder {
+    async fn embed_text(
+        &self,
+        _config: RagRuntimeConfig,
+        _text: String,
+    ) -> anyhow::Result<Vec<f32>> {
+        self.result
+            .lock()
+            .unwrap()
+            .take()
+            .expect("fake rag embedder should be called once")
+    }
 }

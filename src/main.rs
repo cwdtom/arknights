@@ -4,14 +4,16 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 pub mod agent;
+mod command;
 pub mod dao;
 pub mod im;
+mod kv_service;
 pub mod llm;
 pub mod memory;
+#[cfg(test)]
+pub(crate) mod test_support;
 pub mod tool;
 pub mod util;
-mod kv_service;
-mod command;
 
 #[tokio::main]
 async fn main() {

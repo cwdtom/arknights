@@ -1,6 +1,5 @@
 use super::*;
-use crate::kv_service::clear_personal_value_for_test;
-use crate::memory::rag_embedder;
+use crate::test_support;
 
 #[test]
 fn personal_resp_deserializes_contents() {
@@ -14,8 +13,8 @@ fn personal_resp_deserializes_contents() {
 
 #[tokio::test]
 async fn personal_message_returns_error_when_personal_role_missing() {
-    let _guard = rag_embedder::TEST_ENV_LOCK.lock().unwrap();
-    clear_personal_value_for_test().await.unwrap();
+    let _guard = test_support::app_test_guard();
+    test_support::clear_personal_value().await.unwrap();
 
     let err = personal_message("需要改写的内容".to_string())
         .await

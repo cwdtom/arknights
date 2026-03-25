@@ -4,12 +4,14 @@ use fastembed::{
     UserDefinedEmbeddingModel,
 };
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 const RAG_MODEL_ENV_VAR: &str = "ARKNIGHTS_RAG_MODEL";
 const PROJECT_FASTEMBED_CACHE_DIR: &str = "models/fastembed";
 
 static EMBEDDER: LazyLock<Mutex<Option<EmbedderState>>> = LazyLock::new(|| Mutex::new(None));
+static DEFAULT_EMBEDDER: LazyLock<SharedRagEmbeddingBackend> =
+    LazyLock::new(|| Arc::new(FastembedBackend));
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RagConfig {
@@ -34,6 +36,8 @@ struct EmbedderState {
     embedder: TextEmbedding,
 }
 
+pub(crate) type SharedRagEmbeddingBackend = Arc<dyn RagEmbeddingBackend>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LocalModelBundlePaths {
     onnx_file: PathBuf,
@@ -42,6 +46,13 @@ struct LocalModelBundlePaths {
     special_tokens_map_file: PathBuf,
     tokenizer_config_file: PathBuf,
 }
+
+#[async_trait::async_trait]
+pub(crate) trait RagEmbeddingBackend: Send + Sync {
+    async fn embed_text(&self, config: RagRuntimeConfig, text: String) -> anyhow::Result<Vec<f32>>;
+}
+
+struct FastembedBackend;
 
 impl RagConfig {
     pub fn from_env() -> anyhow::Result<Self> {
@@ -106,64 +117,76 @@ pub fn project_fastembed_cache_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(PROJECT_FASTEMBED_CACHE_DIR)
 }
 
-pub async fn embed_chat_history(
+pub(crate) fn default_backend() -> SharedRagEmbeddingBackend {
+    Arc::clone(&DEFAULT_EMBEDDER)
+}
+
+pub(crate) async fn embed_chat_history_with_backend(
     config: RagRuntimeConfig,
     user_content: &str,
     assistant_content: &str,
+    backend: &dyn RagEmbeddingBackend,
 ) -> anyhow::Result<Vec<f32>> {
     let text = build_chat_history_embedding_input(user_content, assistant_content);
-    embed_text(config, text).await
+    embed_text_with_backend(config, text, backend).await
 }
 
-pub async fn embed_text(config: RagRuntimeConfig, text: String) -> anyhow::Result<Vec<f32>> {
-    #[cfg(test)]
-    if let Some(embedding) = test_embedding_result()? {
-        return embedding;
+pub(crate) async fn embed_text_with_backend(
+    config: RagRuntimeConfig,
+    text: String,
+    backend: &dyn RagEmbeddingBackend,
+) -> anyhow::Result<Vec<f32>> {
+    backend.embed_text(config, text).await
+}
+
+#[async_trait::async_trait]
+impl RagEmbeddingBackend for FastembedBackend {
+    async fn embed_text(&self, config: RagRuntimeConfig, text: String) -> anyhow::Result<Vec<f32>> {
+        tokio::task::spawn_blocking(move || embed_text_blocking(config, text)).await?
+    }
+}
+
+fn embed_text_blocking(config: RagRuntimeConfig, text: String) -> anyhow::Result<Vec<f32>> {
+    std::fs::create_dir_all(config.cache_dir())
+        .map_err(|err| anyhow!("create rag cache dir failed: {err}"))?;
+
+    let mut embedder_state = EMBEDDER
+        .lock()
+        .map_err(|_| anyhow!("rag embedder mutex poisoned"))?;
+
+    let needs_init = embedder_state
+        .as_ref()
+        .map(|state| state.config != config)
+        .unwrap_or(true);
+
+    if needs_init {
+        let embedder = build_embedder(&config)?;
+        *embedder_state = Some(EmbedderState {
+            config: config.clone(),
+            embedder,
+        });
     }
 
-    tokio::task::spawn_blocking(move || {
-        std::fs::create_dir_all(config.cache_dir())
-            .map_err(|err| anyhow!("create rag cache dir failed: {err}"))?;
+    let embeddings = embedder_state
+        .as_mut()
+        .ok_or_else(|| anyhow!("rag embedder not initialized"))?
+        .embedder
+        .embed(vec![text], None)?;
 
-        let mut embedder_state = EMBEDDER
-            .lock()
-            .map_err(|_| anyhow!("rag embedder mutex poisoned"))?;
+    let embedding = embeddings
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow!("fastembed returned no embedding"))?;
 
-        let needs_init = embedder_state
-            .as_ref()
-            .map(|state| state.config != config)
-            .unwrap_or(true);
+    if embedding.len() != config.model.dimension() {
+        return Err(anyhow!(
+            "rag embedding dimension mismatch: expected {}, got {}",
+            config.model.dimension(),
+            embedding.len()
+        ));
+    }
 
-        if needs_init {
-            let embedder = build_embedder(&config)?;
-            *embedder_state = Some(EmbedderState {
-                config: config.clone(),
-                embedder,
-            });
-        }
-
-        let embeddings = embedder_state
-            .as_mut()
-            .ok_or_else(|| anyhow!("rag embedder not initialized"))?
-            .embedder
-            .embed(vec![text], None)?;
-
-        let embedding = embeddings
-            .into_iter()
-            .next()
-            .ok_or_else(|| anyhow!("fastembed returned no embedding"))?;
-
-        if embedding.len() != config.model.dimension() {
-            return Err(anyhow!(
-                "rag embedding dimension mismatch: expected {}, got {}",
-                config.model.dimension(),
-                embedding.len()
-            ));
-        }
-
-        Ok(embedding)
-    })
-    .await?
+    Ok(embedding)
 }
 
 fn build_embedder(config: &RagRuntimeConfig) -> anyhow::Result<TextEmbedding> {
@@ -272,47 +295,6 @@ impl TryFrom<&str> for RagModel {
             _ => Err(anyhow!("unsupported {RAG_MODEL_ENV_VAR}: {value}")),
         }
     }
-}
-
-#[cfg(test)]
-#[derive(Clone, Debug)]
-enum TestEmbeddingMode {
-    Success(Vec<f32>),
-    Fail(String),
-}
-
-#[cfg(test)]
-static TEST_EMBEDDING_MODE: LazyLock<Mutex<Option<TestEmbeddingMode>>> =
-    LazyLock::new(|| Mutex::new(None));
-#[cfg(test)]
-pub(crate) static TEST_ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-#[cfg(test)]
-fn test_embedding_result() -> anyhow::Result<Option<anyhow::Result<Vec<f32>>>> {
-    let mode = TEST_EMBEDDING_MODE
-        .lock()
-        .map_err(|_| anyhow!("test rag embedder mutex poisoned"))?
-        .clone();
-
-    Ok(mode.map(|mode| match mode {
-        TestEmbeddingMode::Success(embedding) => Ok(embedding),
-        TestEmbeddingMode::Fail(message) => Err(anyhow!(message)),
-    }))
-}
-
-#[cfg(test)]
-pub fn set_test_embedding_success(embedding: Vec<f32>) {
-    *TEST_EMBEDDING_MODE.lock().unwrap() = Some(TestEmbeddingMode::Success(embedding));
-}
-
-#[cfg(test)]
-pub fn set_test_embedding_failure(message: &str) {
-    *TEST_EMBEDDING_MODE.lock().unwrap() = Some(TestEmbeddingMode::Fail(message.to_string()));
-}
-
-#[cfg(test)]
-pub fn clear_test_embedding_mode() {
-    *TEST_EMBEDDING_MODE.lock().unwrap() = None;
 }
 
 #[cfg(test)]

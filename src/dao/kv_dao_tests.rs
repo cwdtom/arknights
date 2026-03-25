@@ -3,7 +3,7 @@ use anyhow::Result;
 use chrono::{DateTime as ChronoDateTime, FixedOffset, Utc};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{Duration, Instant, sleep};
 
 const TIMESTAMP_POLL_INTERVAL: Duration = Duration::from_millis(1);
 const TIMESTAMP_POLL_TIMEOUT: Duration = Duration::from_secs(1);

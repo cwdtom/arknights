@@ -1,59 +1,47 @@
 use crate::dao::chat_history_dao::ChatHistoryDao;
 use crate::dao::chat_history_vec_dao::ChatHistoryVecDao;
 use crate::llm::{Message, Role};
-#[cfg(test)]
-use crate::memory::rag_embedder::RagModel;
-use crate::memory::rag_embedder::{self, RagConfig, RagRuntimeConfig};
+use crate::memory::rag_embedder::{self, RagConfig, RagRuntimeConfig, SharedRagEmbeddingBackend};
 use anyhow::anyhow;
+use chrono::{DateTime, Duration, Local};
 use std::sync::LazyLock;
 use tracing::{error, info};
 
-#[cfg(test)]
-use std::path::PathBuf;
-use chrono::{DateTime, Duration, Local};
-
-#[cfg(not(test))]
 static CHAT_HISTORY_DAO: LazyLock<anyhow::Result<ChatHistoryDao>> =
     LazyLock::new(ChatHistoryDao::new);
-#[cfg(test)]
-static CHAT_HISTORY_DAO: LazyLock<anyhow::Result<ChatHistoryDao>> =
-    LazyLock::new(|| ChatHistoryDao::with_path(test_db_path()));
-
-#[cfg(test)]
-static TEST_DB_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-
-    std::env::temp_dir().join(format!("arknights_chat_history_service_{nanos}.db"))
-});
 
 fn chat_history_dao() -> anyhow::Result<&'static ChatHistoryDao> {
     CHAT_HISTORY_DAO.as_ref().map_err(|err| anyhow!("{err:#}"))
 }
 
-#[cfg(not(test))]
 fn chat_history_vec_dao(config: &RagRuntimeConfig) -> anyhow::Result<ChatHistoryVecDao> {
     ChatHistoryVecDao::new(config.model.dimension())
-}
-
-#[cfg(test)]
-fn chat_history_vec_dao(config: &RagRuntimeConfig) -> anyhow::Result<ChatHistoryVecDao> {
-    ChatHistoryVecDao::with_path(test_db_path(), config.model.dimension())
-}
-
-#[cfg(test)]
-fn test_db_path() -> &'static PathBuf {
-    &TEST_DB_PATH
 }
 
 const RAG_SEARCH_LIMIT: usize = 5;
 
 pub async fn save_chat_history(user_content: &str, assistant_content: &str) -> anyhow::Result<i64> {
+    save_chat_history_with_backend(
+        user_content,
+        assistant_content,
+        rag_embedder::default_backend(),
+    )
+    .await
+}
+
+async fn save_chat_history_with_backend(
+    user_content: &str,
+    assistant_content: &str,
+    backend: SharedRagEmbeddingBackend,
+) -> anyhow::Result<i64> {
     let dao = chat_history_dao()?;
     let id = dao.insert(user_content, assistant_content).await?;
-    spawn_index_chat_history(id, user_content.to_string(), assistant_content.to_string());
+    spawn_index_chat_history(
+        id,
+        user_content.to_string(),
+        assistant_content.to_string(),
+        backend,
+    );
     Ok(id)
 }
 
@@ -74,8 +62,14 @@ pub async fn build_chat_history_messages(limit: usize) -> anyhow::Result<Vec<Mes
         let user_content = history.user_content.clone();
         let assistant_content = history.assistant_content.clone();
         let create_time_str = history.created_at;
-        messages.push(Message::new(Role::User, format!("[{create_time_str}] {user_content}")));
-        messages.push(Message::new(Role::Assistant, format!("[{create_time_str}] {assistant_content}")));
+        messages.push(Message::new(
+            Role::User,
+            format!("[{create_time_str}] {user_content}"),
+        ));
+        messages.push(Message::new(
+            Role::Assistant,
+            format!("[{create_time_str}] {assistant_content}"),
+        ));
     }
 
     Ok(messages)
@@ -99,6 +93,13 @@ pub async fn fuzz_query(keywords: Vec<String>) -> anyhow::Result<String> {
 }
 
 pub async fn search_rag(keywords: Vec<String>) -> anyhow::Result<String> {
+    search_rag_with_backend(keywords, rag_embedder::default_backend()).await
+}
+
+async fn search_rag_with_backend(
+    keywords: Vec<String>,
+    backend: SharedRagEmbeddingBackend,
+) -> anyhow::Result<String> {
     let (query, keyword_count) = build_rag_query(keywords)?;
 
     info!(
@@ -113,7 +114,9 @@ pub async fn search_rag(keywords: Vec<String>) -> anyhow::Result<String> {
             RagConfig::Disabled => anyhow::bail!("rag search requires ARKNIGHTS_RAG_MODEL"),
         };
 
-        let query_embedding = rag_embedder::embed_text(config.clone(), query.clone()).await?;
+        let query_embedding =
+            rag_embedder::embed_text_with_backend(config.clone(), query.clone(), backend.as_ref())
+                .await?;
         let dimension = query_embedding.len();
         let vec_dao = chat_history_vec_dao(&config)?;
         let matches = vec_dao.search(query_embedding, RAG_SEARCH_LIMIT).await?;
@@ -170,7 +173,12 @@ fn build_rag_query(keywords: Vec<String>) -> anyhow::Result<(String, usize)> {
     Ok((normalized_keywords.join(" "), normalized_keywords.len()))
 }
 
-fn spawn_index_chat_history(chat_history_id: i64, user_content: String, assistant_content: String) {
+fn spawn_index_chat_history(
+    chat_history_id: i64,
+    user_content: String,
+    assistant_content: String,
+    backend: SharedRagEmbeddingBackend,
+) {
     let config = match RagConfig::from_env() {
         Ok(RagConfig::Enabled(config)) => config,
         Ok(RagConfig::Disabled) => {
@@ -195,7 +203,15 @@ fn spawn_index_chat_history(chat_history_id: i64, user_content: String, assistan
     );
 
     tokio::spawn(async move {
-        match index_chat_history(chat_history_id, config, user_content, assistant_content).await {
+        match index_chat_history(
+            chat_history_id,
+            config,
+            user_content,
+            assistant_content,
+            backend,
+        )
+        .await
+        {
             Ok(dimension) => {
                 info!(event = "rag_index_success", chat_history_id, dimension);
             }
@@ -211,9 +227,15 @@ async fn index_chat_history(
     config: RagRuntimeConfig,
     user_content: String,
     assistant_content: String,
+    backend: SharedRagEmbeddingBackend,
 ) -> anyhow::Result<usize> {
-    let embedding =
-        rag_embedder::embed_chat_history(config.clone(), &user_content, &assistant_content).await?;
+    let embedding = rag_embedder::embed_chat_history_with_backend(
+        config.clone(),
+        &user_content,
+        &assistant_content,
+        backend.as_ref(),
+    )
+    .await?;
     let dimension = embedding.len();
     let dao = chat_history_vec_dao(&config)?;
     dao.upsert_embedding(chat_history_id, embedding).await?;
