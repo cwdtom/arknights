@@ -15,6 +15,7 @@ serde_json = "1"
 dotenvy = "0.15.7"
 # time
 chrono = "0.4"
+cron-lite = "0.3"
 # async
 async-trait = "0.1"
 futures = "0.3.32"

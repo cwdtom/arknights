@@ -39,7 +39,7 @@ struct PersonalResp {
     contents: Vec<String>,
 }
 
-pub async fn personal_message(message: String) -> anyhow::Result<()> {
+pub async fn personal_message(message: String) -> anyhow::Result<String> {
     // set system prompt
     let system = Message::new(Role::System, PERSONAL_PROMPT.to_string());
     let mut messages = vec![system];
@@ -69,11 +69,11 @@ pub async fn personal_message(message: String) -> anyhow::Result<()> {
             let personal_resp: PersonalResp = serde_json::from_str(&choice.message.content)?;
 
             // send personal answers
-            for content in personal_resp.contents {
-                im::base_im::async_send(content);
+            for content in &personal_resp.contents {
+                im::base_im::async_send(content.clone());
             }
 
-            Ok(())
+            Ok(personal_resp.contents.join("\n"))
         }
         None => Err(anyhow!("personal response is empty")),
     }

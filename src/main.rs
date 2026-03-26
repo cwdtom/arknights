@@ -12,6 +12,7 @@ pub mod llm;
 pub mod memory;
 #[cfg(test)]
 pub(crate) mod test_support;
+pub mod timer;
 pub mod tool;
 pub mod util;
 
@@ -38,8 +39,9 @@ async fn main() {
     // lark init
     im::base_im::init_lark();
 
+    // timer init
+    timer::timer_service::init_timer();
+
     // lark wss
     im::lark::build_wss().await.expect("building wss error");
-
-    tokio::signal::ctrl_c().await.expect("signaling error");
 }

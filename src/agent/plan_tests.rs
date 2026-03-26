@@ -78,6 +78,7 @@ async fn execute_persists_latest_expand_goal_after_replan() {
             llm_provider: Box::new(TestLlm::new(vec![response])),
         },
         answer: None,
+        is_timer_flow: false,
     };
 
     plan.execute().await.unwrap();
@@ -124,6 +125,7 @@ async fn execute_sends_final_answer_via_im_without_background_panic() {
             llm_provider: Box::new(TestLlm::new(vec![response])),
         },
         answer: None,
+        is_timer_flow: false,
     };
 
     plan.execute().await.unwrap();

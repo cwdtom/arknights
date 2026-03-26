@@ -41,9 +41,9 @@ Then, given the expanded question and any previous execution results, produce a 
 
 ## Language Rule
 `content`, `expand_goal` and every `plan` field must be written in the same language as the user's message.
+"#;
 
-## Output Format Json
-{
+const JSON_FORMAT: &str = r#"{
   "expand_goal": "<expanded question>",
   "plans": [
     "<subtask description>",
@@ -63,6 +63,7 @@ pub struct Plan {
     llm: Llm,
     // if first plan can answer
     answer: Option<String>,
+    is_timer_flow: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -76,7 +77,7 @@ pub struct PlanResp {
 }
 
 impl Plan {
-    pub async fn new(user_message: String) -> anyhow::Result<Self> {
+    pub async fn new(user_message: String, is_timer_flow: bool) -> anyhow::Result<Self> {
         // set system prompt
         let system = Message::new(
             Role::System,
@@ -109,11 +110,12 @@ impl Plan {
                         tools: HashSet::new(),
                         llm,
                         answer: Some(plan_resp.content),
+                        is_timer_flow,
                     });
                 }
 
                 // send expand goal
-                im::base_im::async_send(plan_resp.expand_goal.clone());
+                send_process_message(plan_resp.expand_goal.clone(), is_timer_flow);
 
                 Ok(Plan {
                     question: plan_resp.expand_goal,
@@ -121,15 +123,16 @@ impl Plan {
                     tools: plan_resp.tools,
                     llm,
                     answer: None,
+                    is_timer_flow,
                 })
             }
             None => Err(anyhow!("llm response is empty")),
         }
     }
 
-    pub async fn execute(&mut self) -> anyhow::Result<()> {
+    pub async fn execute(&mut self) -> anyhow::Result<String> {
         if let Some(answer) = self.answer.take() {
-            return send_final_answer(self.question.clone(), answer).await;
+            return send_final_answer(self.question.clone(), answer, self.is_timer_flow).await;
         }
 
         let mut re_act_history: Vec<Message> = vec![];
@@ -152,7 +155,7 @@ impl Plan {
                 re_act_history.push(tool_result.clone());
 
                 // send reAct answer
-                im::base_im::async_send(plan.clone() + " Done");
+                send_process_message(plan.clone() + " Done", self.is_timer_flow);
 
                 if re_act_resp.needs_replan {
                     break;
@@ -167,8 +170,12 @@ impl Plan {
                     self.question = plan_resp.expand_goal.clone();
 
                     if plan_resp.is_done {
-                        send_final_answer(self.question.clone(), plan_resp.content).await?;
-                        return Ok(());
+                        return send_final_answer(
+                            self.question.clone(),
+                            plan_resp.content,
+                            self.is_timer_flow,
+                        )
+                        .await;
                     } else {
                         // update plans
                         self.llm.push_message(choice.message.clone());
@@ -193,12 +200,26 @@ fn build_system_prompt(user_profile: &str) -> String {
 
             ## User profile
             {}
+
+            ## Output Format Json
+            {}
             "#,
-        PLAN_PROMPT, user_profile
+        PLAN_PROMPT, user_profile, JSON_FORMAT
     )
 }
 
-async fn send_final_answer(question: String, content: String) -> anyhow::Result<()> {
+async fn send_final_answer(
+    question: String,
+    content: String,
+    is_timer_flow: bool,
+) -> anyhow::Result<String> {
+    // check notify values
+    if is_timer_flow {
+        // TODO, now all send
+        im::base_im::async_send(content.clone());
+        return Ok(content);
+    }
+
     // save chat history
     match memory::chat_history_service::save_chat_history(question.as_str(), content.as_str()).await
     {
@@ -207,13 +228,21 @@ async fn send_final_answer(question: String, content: String) -> anyhow::Result<
     }
 
     match personal::personal_message(content.clone()).await {
-        Ok(_) => Ok(()),
+        Ok(c) => Ok(c),
         Err(err) => {
             error!("Failed to personalize message: {}", err);
-            im::base_im::async_send(content);
-            Ok(())
+            im::base_im::async_send(content.clone());
+            Ok(content)
         }
     }
+}
+
+fn send_process_message(content: String, is_timer_flow: bool) {
+    if is_timer_flow {
+        return;
+    }
+
+    im::base_im::async_send(content);
 }
 
 /// fake build tool call, return tool call and tool result

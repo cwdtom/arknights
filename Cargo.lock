@@ -94,6 +94,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "cron-lite",
  "dotenvy",
  "fastembed",
  "futures",
@@ -408,6 +409,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "cron-lite"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9cf5336d4be1855e650334452a37eedb4c62e67f0a9ab85e14144a67202b1daf"
+dependencies = [
+ "chrono",
 ]
 
 [[package]]
@@ -2542,7 +2552,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
