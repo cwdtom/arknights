@@ -1,5 +1,5 @@
 use super::*;
-use crate::kv_service::get_personal_value;
+use crate::kv::kv_service::get_personal_value;
 use crate::test_support;
 
 #[tokio::test]

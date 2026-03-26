@@ -19,10 +19,7 @@ static TEST_DB_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
 static TEST_ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 pub(crate) fn lock_test_env() -> MutexGuard<'static, ()> {
-    match TEST_ENV_LOCK.lock() {
-        Ok(guard) => guard,
-        Err(err) => err.into_inner(),
-    }
+    TEST_ENV_LOCK.lock().unwrap_or_else(|err| err.into_inner())
 }
 
 pub(crate) fn app_test_guard() -> MutexGuard<'static, ()> {

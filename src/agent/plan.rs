@@ -1,7 +1,8 @@
 use crate::agent::{ReAct, personal};
 use crate::llm::base_llm::{FunctionCall, ToolCall};
 use crate::llm::{LlmProvider, Message, Role};
-use crate::{im, kv_service, llm, memory};
+use crate::{im, llm, memory};
+use crate::kv::kv_service;
 use anyhow::anyhow;
 use chrono::Local;
 use rand::distr::{Alphanumeric, SampleString};
@@ -75,17 +76,11 @@ pub struct PlanResp {
 
 impl Plan {
     pub async fn new(user_message: String) -> anyhow::Result<Self> {
-        // append user profile into system prompt
-        let system_prompt = format!(
-            r#"{}
-
-            ## User profile
-            {}
-            "#,
-            PLAN_PROMPT, kv_service::get_user_profile().await?);
-
         // set system prompt
-        let system = Message::new(Role::System, system_prompt);
+        let system = Message::new(
+            Role::System,
+            build_system_prompt(&kv_service::get_user_profile().await?),
+        );
         let mut messages = vec![system];
 
         // set history chat
@@ -189,6 +184,17 @@ impl Plan {
 
         Err(anyhow!("plan exceeded max turns ({MAX_TURNS})"))
     }
+}
+
+fn build_system_prompt(user_profile: &str) -> String {
+    format!(
+        r#"{}
+
+            ## User profile
+            {}
+            "#,
+        PLAN_PROMPT, user_profile
+    )
 }
 
 async fn send_final_answer(question: String, content: String) -> anyhow::Result<()> {

@@ -1,6 +1,7 @@
 use crate::llm::base_llm::{Parameters, ToolCall};
 use crate::tool::base_tool::{BaseTool, LlmTool};
-use crate::{kv_service, llm, memory};
+use crate::{llm, memory};
+use crate::kv::kv_service;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 

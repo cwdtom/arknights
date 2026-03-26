@@ -48,3 +48,12 @@ pub async fn ask_user(question: String) -> anyhow::Result<String> {
     let mut im = IM.get().expect("IM not initialized").lock().await;
     im.ask_user(question).await
 }
+
+#[cfg(test)]
+pub(crate) async fn install_test_im(im: Box<dyn Im>) {
+    if let Some(lock) = IM.get() {
+        *lock.lock().await = im;
+    } else {
+        let _ = IM.set(Mutex::new(im));
+    }
+}
