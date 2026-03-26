@@ -1,8 +1,13 @@
+use crate::llm::deep_seek;
 use serde::{Deserialize, Serialize};
 
-/// request body
-#[derive(Serialize, Debug)]
+/// base llm
 pub struct Llm {
+    pub llm_provider: Box<dyn LlmProvider>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct LlmBody {
     pub model: String,
     pub messages: Vec<Message>,
     pub stream: bool,
@@ -11,6 +16,34 @@ pub struct Llm {
     pub temperature: f32,
     pub tools: Vec<Tool>,
     pub tool_choice: String,
+}
+
+#[async_trait::async_trait]
+pub trait LlmProvider: Send {
+    async fn call(&mut self) -> anyhow::Result<ChatResponse>;
+
+    fn push_message(&mut self, message: Message);
+
+    fn extend_messages(&mut self, messages: Vec<Message>);
+}
+
+impl Llm {
+    pub fn new(messages: Vec<Message>, tools: Vec<Tool>) -> Self {
+        // use deepseek
+        deep_seek::init_deep_seek(messages, tools)
+    }
+
+    pub(crate) async fn call(&mut self) -> anyhow::Result<ChatResponse> {
+        self.llm_provider.call().await
+    }
+
+    pub(crate) fn push_message(&mut self, message: Message) {
+        self.llm_provider.push_message(message)
+    }
+
+    pub(crate) fn extend_messages(&mut self, messages: Vec<Message>) {
+        self.llm_provider.extend_messages(messages)
+    }
 }
 
 #[derive(Serialize, Debug)]
@@ -88,15 +121,6 @@ pub struct ToolCall {
 pub struct FunctionCall {
     pub name: String,
     pub arguments: String,
-}
-
-#[async_trait::async_trait]
-pub trait LlmProvider: Send {
-    async fn call(&mut self) -> anyhow::Result<ChatResponse>;
-
-    fn push_message(&mut self, message: Message);
-
-    fn extend_messages(&mut self, messages: Vec<Message>);
 }
 
 impl Tool {

@@ -1,6 +1,6 @@
-use crate::{im, llm};
 use crate::llm::base_llm::{Parameters, ToolCall};
 use crate::tool::base_tool::{BaseTool, LlmTool};
+use crate::{im, llm};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
@@ -48,10 +48,12 @@ impl LlmTool for AskUser {
             }
         };
 
-        im::base_im::ask_user(args.question).await.unwrap_or_else(|e| {
-            error!("ask_user failed: {:?}", e);
-            format!("Error: {}", e)
-        })
+        im::base_im::ask_user(args.question)
+            .await
+            .unwrap_or_else(|e| {
+                error!("ask_user failed: {:?}", e);
+                format!("Error: {}", e)
+            })
     }
 }
 

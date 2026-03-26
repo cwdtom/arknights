@@ -34,7 +34,9 @@ async fn set_then_get_user_profile_round_trips() {
     let _guard = test_support::app_test_guard();
     test_support::clear_user_profile().await.unwrap();
 
-    set_user_profile("Doctor profile in markdown").await.unwrap();
+    set_user_profile("Doctor profile in markdown")
+        .await
+        .unwrap();
 
     let value = get_user_profile().await.unwrap();
     assert_eq!(value, "Doctor profile in markdown");

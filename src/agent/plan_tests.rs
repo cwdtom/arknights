@@ -1,6 +1,7 @@
 use super::*;
 use crate::im::base_im::{self, Im};
 use crate::llm::ChatResponse;
+use crate::llm::base_llm::{Llm, LlmProvider};
 use crate::test_support;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -73,7 +74,9 @@ async fn execute_persists_latest_expand_goal_after_replan() {
         question: initial_question,
         plans: vec![],
         tools: HashSet::new(),
-        llm: Box::new(TestLlm::new(vec![response])),
+        llm: Llm {
+            llm_provider: Box::new(TestLlm::new(vec![response])),
+        },
         answer: None,
     };
 
@@ -117,7 +120,9 @@ async fn execute_sends_final_answer_via_im_without_background_panic() {
         question: format!("initial-question-{token}"),
         plans: vec![],
         tools: HashSet::new(),
-        llm: Box::new(TestLlm::new(vec![response])),
+        llm: Llm {
+            llm_provider: Box::new(TestLlm::new(vec![response])),
+        },
         answer: None,
     };
 

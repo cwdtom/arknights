@@ -16,7 +16,7 @@ pub trait Im: Send + Sync {
     async fn reply_emoji(&mut self, message_id: String, emoji: String) -> anyhow::Result<()>;
 }
 
-/// 启动时初始化
+/// init lark
 pub fn init_lark() {
     match IM.set(Mutex::new(Box::new(lark::Lark::new()))) {
         Ok(_) => {}

@@ -56,7 +56,10 @@ async fn rewrite_user_profile_tool_persists_profile_markdown() {
         .await;
 
     assert_eq!(result, "Successfully rewrite user profile.");
-    assert_eq!(kv_service::get_user_profile().await.unwrap(), "Doctor profile");
+    assert_eq!(
+        kv_service::get_user_profile().await.unwrap(),
+        "Doctor profile"
+    );
 
     test_support::clear_user_profile().await.unwrap();
 }

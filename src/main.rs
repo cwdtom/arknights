@@ -7,13 +7,13 @@ pub mod agent;
 mod command;
 pub mod dao;
 pub mod im;
+pub mod kv;
 pub mod llm;
 pub mod memory;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod tool;
 pub mod util;
-pub mod kv;
 
 #[tokio::main]
 async fn main() {

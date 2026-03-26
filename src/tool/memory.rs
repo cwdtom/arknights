@@ -1,7 +1,7 @@
+use crate::kv::kv_service;
 use crate::llm::base_llm::{Parameters, ToolCall};
 use crate::tool::base_tool::{BaseTool, LlmTool};
 use crate::{llm, memory};
-use crate::kv::kv_service;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
@@ -204,7 +204,10 @@ impl LlmTool for RewriteUserProfileTool {
             match serde_json::from_str(&tool_call.function.arguments) {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("failed to parse rewrite user profile tool arguments: {:?}", e);
+                    error!(
+                        "failed to parse rewrite user profile tool arguments: {:?}",
+                        e
+                    );
                     return format!("Error: invalid arguments: {}", e);
                 }
             };

@@ -1,7 +1,7 @@
+use crate::command::command;
 use crate::im::base_im;
 use crate::im::base_im::Im;
 use crate::{agent, util};
-use crate::command::command;
 use chrono::Utc;
 use open_lark::openlark_client;
 use openlark_client::ws_client::{EventDispatcherHandler, LarkWsClient};

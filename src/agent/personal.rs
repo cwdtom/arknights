@@ -1,5 +1,6 @@
 use crate::kv::kv_service;
-use crate::llm::{LlmProvider, Message, Role};
+use crate::llm::Message;
+use crate::llm::Role;
 use crate::{im, llm};
 use anyhow::anyhow;
 use serde::Deserialize;
@@ -61,7 +62,7 @@ pub async fn personal_message(message: String) -> anyhow::Result<()> {
     messages.push(user);
 
     // make plan
-    let mut llm = llm::deep_seek::DeepSeek::new(messages, vec![]);
+    let mut llm = llm::base_llm::Llm::new(messages, vec![]);
     let chat_resp = llm.call().await?;
     match chat_resp.choices.first() {
         Some(choice) => {

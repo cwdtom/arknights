@@ -1,6 +1,5 @@
-use crate::llm;
-use crate::llm::base_llm::{Choice, ToolCall, ToolResult};
-use crate::llm::{ChatResponse, LlmProvider, Message, Role, Tool};
+use crate::llm::base_llm::{Choice, Llm, ToolCall, ToolResult};
+use crate::llm::{ChatResponse, Message, Role, Tool};
 use crate::tool;
 use anyhow::anyhow;
 use serde::Deserialize;
@@ -29,7 +28,7 @@ pub struct ReActResp {
 
 /// agent reAct module
 pub struct ReAct {
-    pub llm: Box<dyn LlmProvider>,
+    pub llm: Llm,
 }
 
 impl ReAct {
@@ -52,8 +51,8 @@ impl ReAct {
             .map(|t| Tool::new(t.deep_seek_schema()))
             .collect();
 
-        let llm = llm::deep_seek::DeepSeek::new(messages, tools);
-        Ok(ReAct { llm: Box::new(llm) })
+        let llm = Llm::new(messages, tools);
+        Ok(ReAct { llm })
     }
 
     pub async fn execute(&mut self) -> anyhow::Result<ReActResp> {

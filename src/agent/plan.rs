@@ -1,8 +1,9 @@
 use crate::agent::{ReAct, personal};
-use crate::llm::base_llm::{FunctionCall, ToolCall};
-use crate::llm::{LlmProvider, Message, Role};
-use crate::{im, llm, memory};
 use crate::kv::kv_service;
+use crate::llm::Message;
+use crate::llm::Role;
+use crate::llm::base_llm::{FunctionCall, Llm, ToolCall};
+use crate::{im, memory};
 use anyhow::anyhow;
 use chrono::Local;
 use rand::distr::{Alphanumeric, SampleString};
@@ -59,7 +60,7 @@ pub struct Plan {
     question: String,
     plans: Vec<String>,
     tools: HashSet<String>,
-    llm: Box<dyn LlmProvider>,
+    llm: Llm,
     // if first plan can answer
     answer: Option<String>,
 }
@@ -93,7 +94,7 @@ impl Plan {
         messages.push(user);
 
         // make plan
-        let mut llm = llm::deep_seek::DeepSeek::new(messages, vec![]);
+        let mut llm = Llm::new(messages, vec![]);
         let chat_resp = llm.call().await?;
         match chat_resp.choices.first() {
             Some(choice) => {
@@ -106,7 +107,7 @@ impl Plan {
                         question: plan_resp.expand_goal,
                         plans: vec![],
                         tools: HashSet::new(),
-                        llm: Box::new(llm),
+                        llm,
                         answer: Some(plan_resp.content),
                     });
                 }
@@ -118,7 +119,7 @@ impl Plan {
                     question: plan_resp.expand_goal,
                     plans: plan_resp.plans,
                     tools: plan_resp.tools,
-                    llm: Box::new(llm),
+                    llm,
                     answer: None,
                 })
             }

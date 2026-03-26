@@ -1,4 +1,6 @@
 use super::*;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 
 #[test]
 fn message_new_sets_defaults() {
@@ -106,4 +108,74 @@ fn tool_call_round_trip() {
     assert_eq!(tc2.id, "call_abc");
     assert_eq!(tc2.function.name, "my_tool");
     assert_eq!(tc2.function.arguments, r#"{"key":"val"}"#);
+}
+
+#[tokio::test]
+async fn llm_delegates_to_provider() {
+    let recorded_messages = Arc::new(Mutex::new(vec![]));
+    let mut llm = Llm {
+        llm_provider: Box::new(TestLlmProvider::new(
+            vec![chat_response("delegated-response")],
+            recorded_messages.clone(),
+        )),
+    };
+
+    llm.push_message(Message::new(Role::User, "first".to_string()));
+    llm.extend_messages(vec![
+        Message::new(Role::Assistant, "second".to_string()),
+        Message::new(Role::Tool, "third".to_string()),
+    ]);
+    let response = llm.call().await.unwrap();
+
+    assert_eq!(response.id, "test-chat-response");
+    assert_eq!(response.choices[0].message.content, "delegated-response");
+    let messages = recorded_messages.lock().unwrap();
+    assert_eq!(messages.len(), 3);
+    assert_eq!(messages[0].content, "first");
+    assert_eq!(messages[1].content, "second");
+    assert_eq!(messages[2].content, "third");
+}
+
+struct TestLlmProvider {
+    responses: VecDeque<ChatResponse>,
+    recorded_messages: Arc<Mutex<Vec<Message>>>,
+}
+
+impl TestLlmProvider {
+    fn new(responses: Vec<ChatResponse>, recorded_messages: Arc<Mutex<Vec<Message>>>) -> Self {
+        Self {
+            responses: responses.into(),
+            recorded_messages,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl LlmProvider for TestLlmProvider {
+    async fn call(&mut self) -> anyhow::Result<ChatResponse> {
+        self.responses
+            .pop_front()
+            .ok_or_else(|| anyhow::anyhow!("test llm response queue is empty"))
+    }
+
+    fn push_message(&mut self, message: Message) {
+        self.recorded_messages.lock().unwrap().push(message);
+    }
+
+    fn extend_messages(&mut self, messages: Vec<Message>) {
+        self.recorded_messages.lock().unwrap().extend(messages);
+    }
+}
+
+fn chat_response(content: &str) -> ChatResponse {
+    serde_json::from_value(serde_json::json!({
+        "id": "test-chat-response",
+        "choices": [{
+            "message": {
+                "role": "assistant",
+                "content": content
+            }
+        }]
+    }))
+    .unwrap()
 }
