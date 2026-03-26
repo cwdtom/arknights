@@ -15,6 +15,9 @@ pub trait LlmTool {
     /// get tool group name
     fn group_name(&self) -> &str;
 
+    /// get tool name
+    fn name(&self) -> &str;
+
     /// generate deepseek tool schema
     fn deep_seek_schema(&self) -> llm::base_llm::Function;
 

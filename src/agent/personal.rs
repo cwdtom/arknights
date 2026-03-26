@@ -61,7 +61,7 @@ pub async fn personal_message(message: String) -> anyhow::Result<String> {
     );
     messages.push(user);
 
-    // make plan
+    // make personal
     let mut llm = llm::base_llm::Llm::new(messages, vec![]);
     let chat_resp = llm.call().await?;
     match chat_resp.choices.first() {

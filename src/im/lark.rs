@@ -153,7 +153,7 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
         // PLAN_LOCK ensures only one plan runs at a time
         tokio::spawn(async move {
             let _guard = PLAN_LOCK.lock().await;
-            match agent::plan::Plan::new(text, false).await {
+            match agent::plan::Plan::new(text, None).await {
                 Ok(mut plan) => {
                     if let Err(e) = plan.execute().await {
                         error!("plan execution error: {:?}", e);

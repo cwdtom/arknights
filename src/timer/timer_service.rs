@@ -14,6 +14,15 @@ static TIMER_DAO: LazyLock<anyhow::Result<TimerDao>> = LazyLock::new(TimerDao::n
 const PERIOD: u64 = 10;
 const DUE_TASK_LIMIT: usize = 32;
 
+fn timer_dao() -> anyhow::Result<&'static TimerDao> {
+    TIMER_DAO.as_ref().map_err(|err| anyhow!("{err:#}"))
+}
+
+pub async fn get_by_id(id: String) -> anyhow::Result<Option<TimerTask>> {
+    let dao = timer_dao()?;
+    dao.get(&id).await
+}
+
 pub fn init_timer() {
     tokio::spawn(async move {
         let dao = match TimerDao::new() {
@@ -36,7 +45,7 @@ pub fn init_timer() {
 pub async fn execute_tasks(dao: &TimerDao, now: DateTime<Local>) -> anyhow::Result<()> {
     let tasks = dao.list_due(now, DUE_TASK_LIMIT).await?;
     for task in tasks {
-        let mut plan = Plan::new(task.prompt.clone(), true).await?;
+        let mut plan = Plan::new(task.prompt.clone(), Some(task.id.clone())).await?;
         let result = plan.execute().await?;
 
         let remaining_runs = task.remaining_runs.saturating_sub(1);

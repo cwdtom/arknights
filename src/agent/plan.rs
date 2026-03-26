@@ -1,3 +1,4 @@
+use crate::agent::notify_check::make_notify_choice;
 use crate::agent::{ReAct, personal};
 use crate::kv::kv_service;
 use crate::llm::Message;
@@ -63,7 +64,7 @@ pub struct Plan {
     llm: Llm,
     // if first plan can answer
     answer: Option<String>,
-    is_timer_flow: bool,
+    timer_id: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -77,7 +78,7 @@ pub struct PlanResp {
 }
 
 impl Plan {
-    pub async fn new(user_message: String, is_timer_flow: bool) -> anyhow::Result<Self> {
+    pub async fn new(user_message: String, timer_id: Option<String>) -> anyhow::Result<Self> {
         // set system prompt
         let system = Message::new(
             Role::System,
@@ -110,12 +111,12 @@ impl Plan {
                         tools: HashSet::new(),
                         llm,
                         answer: Some(plan_resp.content),
-                        is_timer_flow,
+                        timer_id,
                     });
                 }
 
                 // send expand goal
-                send_process_message(plan_resp.expand_goal.clone(), is_timer_flow);
+                send_process_message(plan_resp.expand_goal.clone(), timer_id.clone());
 
                 Ok(Plan {
                     question: plan_resp.expand_goal,
@@ -123,7 +124,7 @@ impl Plan {
                     tools: plan_resp.tools,
                     llm,
                     answer: None,
-                    is_timer_flow,
+                    timer_id,
                 })
             }
             None => Err(anyhow!("llm response is empty")),
@@ -132,7 +133,7 @@ impl Plan {
 
     pub async fn execute(&mut self) -> anyhow::Result<String> {
         if let Some(answer) = self.answer.take() {
-            return send_final_answer(self.question.clone(), answer, self.is_timer_flow).await;
+            return send_final_answer(self.question.clone(), answer, self.timer_id.clone()).await;
         }
 
         let mut re_act_history: Vec<Message> = vec![];
@@ -144,7 +145,11 @@ impl Plan {
                 re_act_history.push(sub_message);
 
                 // init reAct
-                let mut re_act = ReAct::new(re_act_history.clone(), self.tools.clone())?;
+                let mut re_act = ReAct::new(
+                    re_act_history.clone(),
+                    self.tools.clone(),
+                    self.timer_id.is_none(),
+                )?;
                 let re_act_resp = re_act.execute().await?;
                 // set sub answer, fake tool call
                 let (tool_call, tool_result) =
@@ -155,7 +160,7 @@ impl Plan {
                 re_act_history.push(tool_result.clone());
 
                 // send reAct answer
-                send_process_message(plan.clone() + " Done", self.is_timer_flow);
+                send_process_message(plan.clone() + " Done", self.timer_id.clone());
 
                 if re_act_resp.needs_replan {
                     break;
@@ -173,7 +178,7 @@ impl Plan {
                         return send_final_answer(
                             self.question.clone(),
                             plan_resp.content,
-                            self.is_timer_flow,
+                            self.timer_id.clone(),
                         )
                         .await;
                     } else {
@@ -211,12 +216,14 @@ fn build_system_prompt(user_profile: &str) -> String {
 async fn send_final_answer(
     question: String,
     content: String,
-    is_timer_flow: bool,
+    timer_id: Option<String>,
 ) -> anyhow::Result<String> {
     // check notify values
-    if is_timer_flow {
-        // TODO, now all send
-        im::base_im::async_send(content.clone());
+    if timer_id.is_some() {
+        let is_notify = make_notify_choice(content.clone(), timer_id.unwrap()).await?;
+        if is_notify {
+            im::base_im::async_send(content.clone());
+        }
         return Ok(content);
     }
 
@@ -237,8 +244,8 @@ async fn send_final_answer(
     }
 }
 
-fn send_process_message(content: String, is_timer_flow: bool) {
-    if is_timer_flow {
+fn send_process_message(content: String, timer_id: Option<String>) {
+    if timer_id.is_some() {
         return;
     }
 

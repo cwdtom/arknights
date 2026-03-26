@@ -18,6 +18,10 @@ impl LlmTool for DateTool {
         &self.base_tool.group_name
     }
 
+    fn name(&self) -> &str {
+        self.base_tool.name.as_str()
+    }
+
     fn deep_seek_schema(&self) -> llm::base_llm::Function {
         llm::base_llm::Function {
             name: self.base_tool.name.clone(),
