@@ -25,6 +25,7 @@ Then, given the expanded question and any previous execution results, produce a 
 - system: System-related info or operations
 - internet: Internet-related operations
 - memory: Memory-related search
+- timer: Timer-related(curd timer task, used to invoke the agent.) operations
 
 ## Decision Rules
 1. If the question has NOT been fully answered yet:

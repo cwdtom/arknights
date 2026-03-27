@@ -110,6 +110,8 @@ async fn mark_run_completed(
 pub fn init_timer() {
     tokio::spawn(async move {
         loop {
+            tokio::time::sleep(Duration::from_secs(PERIOD)).await;
+
             let now = Local::now();
             let tasks = match list_due(now).await {
                 Ok(tasks) => tasks,
@@ -130,8 +132,6 @@ pub fn init_timer() {
                     })
                     .await;
             }
-
-            tokio::time::sleep(Duration::from_secs(PERIOD)).await;
         }
     });
 }
