@@ -1,6 +1,6 @@
 use crate::llm::base_llm::{Parameters, ToolCall};
 use crate::tool::base_tool::{BaseTool, LlmTool};
-use crate::{im, llm};
+use crate::{im, llm, timer};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
@@ -44,6 +44,10 @@ impl LlmTool for AskUser {
     }
 
     async fn deep_seek_call(&self, tool_call: &ToolCall) -> String {
+        if timer::timer_service::get_thread_local_timer_id().is_some() {
+            return "During the execution of a scheduled task process, asking the user is prohibited.".to_string();
+        }
+
         let args: AskUserArgs = match serde_json::from_str(&tool_call.function.arguments) {
             Ok(v) => v,
             Err(e) => {

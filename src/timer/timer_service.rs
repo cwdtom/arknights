@@ -6,7 +6,11 @@ use cron_lite::Schedule;
 use std::str::FromStr;
 use std::sync::LazyLock;
 use std::time::Duration;
-use tracing::{error};
+use tracing::{error, info};
+
+tokio::task_local! {
+    static TIMER_ID_THREAD_LOCAL: String;
+}
 
 static TIMER_DAO: LazyLock<anyhow::Result<TimerDao>> = LazyLock::new(TimerDao::new);
 
@@ -23,46 +27,69 @@ pub async fn get_by_id(id: String) -> anyhow::Result<Option<TimerTask>> {
     dao.get(&id).await
 }
 
+async fn list_due(now: DateTime<Local>) -> anyhow::Result<Vec<TimerTask>> {
+    let dao = timer_dao()?;
+    dao.list_due(now, DUE_TASK_LIMIT).await
+}
+
+pub fn get_thread_local_timer_id() -> Option<String> {
+    match TIMER_ID_THREAD_LOCAL.try_with(|v| v.clone()) {
+        Ok(val) => Some(val),
+        Err(_)  => None,
+    }
+}
+
+async fn mark_run_completed(
+    id: &str,
+    remaining_runs: u32,
+    next_trigger_at: &str,
+    completed_at: &str,
+    result: &str,
+) -> anyhow::Result<()> {
+    let dao = timer_dao()?;
+    dao.mark_run_completed(id, remaining_runs, next_trigger_at, completed_at, result)
+        .await
+}
+
 pub fn init_timer() {
     tokio::spawn(async move {
-        let dao = match TimerDao::new() {
-            Ok(dao) => dao,
-            Err(err) => {
-                error!("init timer dao failed: {:?}", err);
-                return;
-            }
-        };
-
         loop {
-            if let Err(err) = execute_tasks(&dao, Local::now()).await {
-                error!("timer tick failed: {:?}", err);
+            let now = Local::now();
+            let tasks = match list_due(now).await {
+                Ok(tasks) => tasks,
+                Err(err) => {
+                    error!("task list_due failed: {:?}", err);
+                    continue;
+                }
+            };
+            for task in tasks {
+                TIMER_ID_THREAD_LOCAL.scope(task.id.clone(), async {
+                    match execute_task(task, now).await {
+                        Ok(_) => info!("task executed successfully."),
+                        Err(err) => {
+                            error!("task execute failed: {:?}", err);
+                        }
+                    }
+                })
+                .await;
             }
+
             tokio::time::sleep(Duration::from_secs(PERIOD)).await;
         }
     });
 }
 
-pub async fn execute_tasks(dao: &TimerDao, now: DateTime<Local>) -> anyhow::Result<()> {
-    let tasks = dao.list_due(now, DUE_TASK_LIMIT).await?;
-    for task in tasks {
-        let mut plan = Plan::new(task.prompt.clone(), Some(task.id.clone())).await?;
-        let result = plan.execute().await?;
+async fn execute_task(task: TimerTask, now: DateTime<Local>) -> anyhow::Result<()> {
+    info!("task executed: {:?}", task);
 
-        let remaining_runs = task.remaining_runs.saturating_sub(1);
-        let next_trigger_at = build_next_trigger_at(&task, now)?;
-        let completed_at = now.to_rfc3339();
+    let mut plan = Plan::new(task.prompt.clone()).await?;
+    let result = plan.execute().await?;
 
-        dao.mark_run_completed(
-            &task.id,
-            remaining_runs,
-            &next_trigger_at,
-            &completed_at,
-            &result,
-        )
-        .await?
-    }
+    let remaining_runs = task.remaining_runs.saturating_sub(1);
+    let next_trigger_at = build_next_trigger_at(&task, now)?;
+    let completed_at = now.to_rfc3339();
 
-    Ok(())
+    mark_run_completed(&task.id, remaining_runs, &next_trigger_at, &completed_at, &result).await
 }
 
 fn build_next_trigger_at(task: &TimerTask, now: DateTime<Local>) -> anyhow::Result<String> {

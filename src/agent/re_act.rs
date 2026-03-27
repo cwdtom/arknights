@@ -35,7 +35,6 @@ impl ReAct {
     pub fn new(
         mut messages: Vec<Message>,
         mut tools_group: HashSet<String>,
-        allow_ask_user: bool,
     ) -> anyhow::Result<Self> {
         // system message
         let system: Message = Message::new(Role::System, THINK_PROMPT.to_string());
@@ -49,8 +48,6 @@ impl ReAct {
         let tools: Vec<Tool> = tools_group
             .iter()
             .flat_map(|t| tool::get_tool_by_group(t))
-            // timer flow remove ask_user tool
-            .filter(|t| allow_ask_user || t.name() != "process_control_ask_user")
             .map(|t| Tool::new(t.deep_seek_schema()))
             .collect();
 
@@ -190,7 +187,6 @@ mod tests {
         let mut react = ReAct::new(
             vec![Message::new(Role::User, "task".to_string())],
             HashSet::new(),
-            true,
         )
         .unwrap();
         let tool_call = ToolCall {
@@ -214,7 +210,6 @@ mod tests {
         let mut react = ReAct::new(
             vec![Message::new(Role::User, "task".to_string())],
             HashSet::new(),
-            true,
         )
         .unwrap();
         let tool_call = ToolCall {
@@ -238,7 +233,6 @@ mod tests {
         let mut react = ReAct::new(
             vec![Message::new(Role::User, "task".to_string())],
             HashSet::new(),
-            true,
         )
         .unwrap();
         let tool_call = ToolCall {

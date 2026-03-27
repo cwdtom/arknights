@@ -1,9 +1,7 @@
 use super::*;
-use crate::dao::timer_dao::{NewTimerTask, TimerDao};
 use crate::im::base_im::{self, Im};
 use crate::llm::ChatResponse;
 use crate::llm::base_llm::{Llm, LlmProvider};
-use chrono::{Local, TimeZone};
 use crate::test_support;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -80,7 +78,6 @@ async fn execute_persists_latest_expand_goal_after_replan() {
             llm_provider: Box::new(TestLlm::new(vec![response])),
         },
         answer: None,
-        timer_id: None,
     };
 
     plan.execute().await.unwrap();
@@ -127,7 +124,6 @@ async fn execute_sends_final_answer_via_im_without_background_panic() {
             llm_provider: Box::new(TestLlm::new(vec![response])),
         },
         answer: None,
-        timer_id: None,
     };
 
     plan.execute().await.unwrap();
@@ -137,31 +133,20 @@ async fn execute_sends_final_answer_via_im_without_background_panic() {
 }
 
 #[tokio::test]
-async fn execute_timer_answer_sends_final_message_when_previous_result_is_missing() {
+async fn execute_with_prefilled_answer_sends_final_message() {
     let _guard = test_support::app_test_guard();
     disable_rag_and_set_lark_env();
-    let task_id = unique_token("timer-task");
-    let final_answer = format!("timer-answer-{}", unique_token("timer-send"));
-    let dao = TimerDao::new().unwrap();
-    let task = NewTimerTask {
-        id: task_id.clone(),
-        prompt: "每天早上提醒我".to_string(),
-        cron_expr: "0 0 9 * * *".to_string(),
-        remaining_runs: 2,
-        next_trigger_at: local_rfc3339(2026, 3, 26, 9, 0, 0),
-    };
-    dao.create(&task).await.unwrap();
+    let final_answer = format!("prefilled-answer-{}", unique_token("prefilled"));
     let sent_messages = Arc::new(Mutex::new(vec![]));
     install_fake_im(sent_messages.clone()).await;
     let mut plan = Plan {
-        question: format!("timer-question-{}", unique_token("timer-question")),
+        question: format!("prefilled-question-{}", unique_token("prefilled-question")),
         plans: vec![],
         tools: HashSet::new(),
         llm: Llm {
             llm_provider: Box::new(TestLlm::new(vec![])),
         },
         answer: Some(final_answer.clone()),
-        timer_id: Some(task_id),
     };
 
     let result = plan.execute().await.unwrap();
@@ -229,14 +214,6 @@ fn assert_timestamped_message(actual: &str, expected_suffix: &str) {
     assert!(prefix.starts_with('['));
     chrono::DateTime::parse_from_rfc3339(&prefix[1..]).unwrap();
     assert_eq!(suffix, expected_suffix);
-}
-
-fn local_rfc3339(year: i32, month: u32, day: u32, hour: u32, minute: u32, second: u32) -> String {
-    Local
-        .with_ymd_and_hms(year, month, day, hour, minute, second)
-        .single()
-        .unwrap()
-        .to_rfc3339()
 }
 
 async fn install_fake_im(sent_messages: Arc<Mutex<Vec<String>>>) {

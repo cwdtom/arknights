@@ -4,7 +4,7 @@ use crate::kv::kv_service;
 use crate::llm::Message;
 use crate::llm::Role;
 use crate::llm::base_llm::{FunctionCall, Llm, ToolCall};
-use crate::{im, memory};
+use crate::{im, memory, timer};
 use anyhow::anyhow;
 use chrono::Local;
 use rand::distr::{Alphanumeric, SampleString};
@@ -64,7 +64,6 @@ pub struct Plan {
     llm: Llm,
     // if first plan can answer
     answer: Option<String>,
-    timer_id: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -78,7 +77,7 @@ pub struct PlanResp {
 }
 
 impl Plan {
-    pub async fn new(user_message: String, timer_id: Option<String>) -> anyhow::Result<Self> {
+    pub async fn new(user_message: String) -> anyhow::Result<Self> {
         // set system prompt
         let system = Message::new(
             Role::System,
@@ -111,12 +110,11 @@ impl Plan {
                         tools: HashSet::new(),
                         llm,
                         answer: Some(plan_resp.content),
-                        timer_id,
                     });
                 }
 
                 // send expand goal
-                send_process_message(plan_resp.expand_goal.clone(), timer_id.clone());
+                send_process_message(plan_resp.expand_goal.clone());
 
                 Ok(Plan {
                     question: plan_resp.expand_goal,
@@ -124,7 +122,6 @@ impl Plan {
                     tools: plan_resp.tools,
                     llm,
                     answer: None,
-                    timer_id,
                 })
             }
             None => Err(anyhow!("llm response is empty")),
@@ -133,7 +130,7 @@ impl Plan {
 
     pub async fn execute(&mut self) -> anyhow::Result<String> {
         if let Some(answer) = self.answer.take() {
-            return send_final_answer(self.question.clone(), answer, self.timer_id.clone()).await;
+            return send_final_answer(self.question.clone(), answer).await;
         }
 
         let mut re_act_history: Vec<Message> = vec![];
@@ -145,11 +142,7 @@ impl Plan {
                 re_act_history.push(sub_message);
 
                 // init reAct
-                let mut re_act = ReAct::new(
-                    re_act_history.clone(),
-                    self.tools.clone(),
-                    self.timer_id.is_none(),
-                )?;
+                let mut re_act = ReAct::new(re_act_history.clone(), self.tools.clone())?;
                 let re_act_resp = re_act.execute().await?;
                 // set sub answer, fake tool call
                 let (tool_call, tool_result) =
@@ -160,7 +153,7 @@ impl Plan {
                 re_act_history.push(tool_result.clone());
 
                 // send reAct answer
-                send_process_message(plan.clone() + " Done", self.timer_id.clone());
+                send_process_message(plan.clone() + " Done");
 
                 if re_act_resp.needs_replan {
                     break;
@@ -175,12 +168,7 @@ impl Plan {
                     self.question = plan_resp.expand_goal.clone();
 
                     if plan_resp.is_done {
-                        return send_final_answer(
-                            self.question.clone(),
-                            plan_resp.content,
-                            self.timer_id.clone(),
-                        )
-                        .await;
+                        return send_final_answer(self.question.clone(), plan_resp.content).await;
                     } else {
                         // update plans
                         self.llm.push_message(choice.message.clone());
@@ -213,12 +201,9 @@ fn build_system_prompt(user_profile: &str) -> String {
     )
 }
 
-async fn send_final_answer(
-    question: String,
-    content: String,
-    timer_id: Option<String>,
-) -> anyhow::Result<String> {
+async fn send_final_answer(question: String, content: String) -> anyhow::Result<String> {
     // check notify values
+    let timer_id = timer::timer_service::get_thread_local_timer_id();
     if timer_id.is_some() {
         let is_notify = make_notify_choice(content.clone(), timer_id.unwrap()).await?;
         if is_notify {
@@ -244,8 +229,8 @@ async fn send_final_answer(
     }
 }
 
-fn send_process_message(content: String, timer_id: Option<String>) {
-    if timer_id.is_some() {
+fn send_process_message(content: String) {
+    if timer::timer_service::get_thread_local_timer_id().is_some() {
         return;
     }
 
