@@ -204,9 +204,8 @@ fn build_system_prompt(user_profile: &str) -> String {
 
 async fn send_final_answer(question: String, content: String) -> anyhow::Result<String> {
     // check notify values
-    let timer_id = timer::timer_service::get_thread_local_timer_id();
-    if timer_id.is_some() {
-        let is_notify = make_notify_choice(content.clone(), timer_id.unwrap()).await?;
+    if let Some(timer_id) = timer::timer_service::get_thread_local_timer_id() {
+        let is_notify = make_notify_choice(content.clone(), timer_id).await?;
         if is_notify {
             im::base_im::async_send(content.clone());
         }

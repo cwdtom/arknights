@@ -89,10 +89,7 @@ async fn list_due(now: DateTime<Local>) -> anyhow::Result<Vec<TimerTask>> {
 }
 
 pub fn get_thread_local_timer_id() -> Option<String> {
-    match TIMER_ID_THREAD_LOCAL.try_with(|v| v.clone()) {
-        Ok(val) => Some(val),
-        Err(_) => None,
-    }
+    TIMER_ID_THREAD_LOCAL.try_with(|v| v.clone()).ok()
 }
 
 async fn mark_run_completed(

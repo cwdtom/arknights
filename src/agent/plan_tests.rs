@@ -5,7 +5,6 @@ use crate::llm::base_llm::{Llm, LlmProvider};
 use crate::test_support;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn plan_resp_defaults_is_done_to_false() {
@@ -56,7 +55,7 @@ fn build_system_prompt_includes_user_profile_section() {
 async fn execute_persists_latest_expand_goal_after_replan() {
     let _guard = test_support::app_test_guard();
     disable_rag_and_set_lark_env();
-    let token = unique_token("replan");
+    let token = test_support::unique_test_token("plan-tests", "replan");
     let initial_question = format!("initial-question-{token}");
     let final_question = format!("final-question-{token}");
     let final_answer = format!("final-answer-{token}");
@@ -93,16 +92,16 @@ async fn execute_persists_latest_expand_goal_after_replan() {
 
     assert_eq!(matched_messages.len(), 2);
     assert!(matches!(matched_messages[0].role, Role::User));
-    assert_timestamped_message(&matched_messages[0].content, &final_question);
+    test_support::assert_timestamped_message(&matched_messages[0].content, &final_question);
     assert!(matches!(matched_messages[1].role, Role::Assistant));
-    assert_timestamped_message(&matched_messages[1].content, &final_answer);
+    test_support::assert_timestamped_message(&matched_messages[1].content, &final_answer);
 }
 
 #[tokio::test]
 async fn execute_sends_final_answer_via_im_without_background_panic() {
     let _guard = test_support::app_test_guard();
     disable_rag_and_set_lark_env();
-    let token = unique_token("send");
+    let token = test_support::unique_test_token("plan-tests", "send");
     let final_question = format!("final-question-{token}");
     let final_answer = format!("final-answer-{token}");
     let response = plan_chat_response(&format!(
@@ -136,11 +135,17 @@ async fn execute_sends_final_answer_via_im_without_background_panic() {
 async fn execute_with_prefilled_answer_sends_final_message() {
     let _guard = test_support::app_test_guard();
     disable_rag_and_set_lark_env();
-    let final_answer = format!("prefilled-answer-{}", unique_token("prefilled"));
+    let final_answer = format!(
+        "prefilled-answer-{}",
+        test_support::unique_test_token("plan-tests", "prefilled")
+    );
     let sent_messages = Arc::new(Mutex::new(vec![]));
     install_fake_im(sent_messages.clone()).await;
     let mut plan = Plan {
-        question: format!("prefilled-question-{}", unique_token("prefilled-question")),
+        question: format!(
+            "prefilled-question-{}",
+            test_support::unique_test_token("plan-tests", "prefilled-question")
+        ),
         plans: vec![],
         tools: HashSet::new(),
         llm: Llm {
@@ -197,23 +202,6 @@ fn plan_chat_response(content: &str) -> ChatResponse {
 fn disable_rag_and_set_lark_env() {
     test_support::configure_app_test_env();
     test_support::disable_rag_for_test();
-}
-
-fn unique_token(label: &str) -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    format!("plan-tests-{label}-{nanos}")
-}
-
-fn assert_timestamped_message(actual: &str, expected_suffix: &str) {
-    let (prefix, suffix) = actual
-        .split_once("] ")
-        .expect("message should contain RFC3339 prefix");
-    assert!(prefix.starts_with('['));
-    chrono::DateTime::parse_from_rfc3339(&prefix[1..]).unwrap();
-    assert_eq!(suffix, expected_suffix);
 }
 
 async fn install_fake_im(sent_messages: Arc<Mutex<Vec<String>>>) {

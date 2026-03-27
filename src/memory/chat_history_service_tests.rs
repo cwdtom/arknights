@@ -5,10 +5,8 @@ use crate::memory::rag_embedder::{
 use crate::test_support;
 use serde_json::Value;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-static TEST_LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 #[test]
 fn chat_history_service_source_keeps_only_external_test_module_gate() {
@@ -20,7 +18,7 @@ fn chat_history_service_source_keeps_only_external_test_module_gate() {
 async fn save_chat_history_persists_pair_and_returns_positive_id() {
     let _guard = test_support::app_test_guard();
     disable_rag_for_test();
-    let token = unique_token("save");
+    let token = test_support::unique_test_token("chat-history-service", "save");
     let user_content = format!("user-{token}");
     let assistant_content = format!("assistant-{token}");
 
@@ -38,16 +36,16 @@ async fn save_chat_history_persists_pair_and_returns_positive_id() {
 
     assert_eq!(matched_messages.len(), 2);
     assert!(matches!(matched_messages[0].role, Role::User));
-    assert_timestamped_message(&matched_messages[0].content, &user_content);
+    test_support::assert_timestamped_message(&matched_messages[0].content, &user_content);
     assert!(matches!(matched_messages[1].role, Role::Assistant));
-    assert_timestamped_message(&matched_messages[1].content, &assistant_content);
+    test_support::assert_timestamped_message(&matched_messages[1].content, &assistant_content);
 }
 
 #[tokio::test]
 async fn build_chat_history_messages_returns_pairs_in_history_order() {
     let _guard = test_support::app_test_guard();
     disable_rag_for_test();
-    let token = unique_token("build");
+    let token = test_support::unique_test_token("chat-history-service", "build");
     let older_user = format!("older-user-{token}");
     let older_assistant = format!("older-assistant-{token}");
     let newer_user = format!("newer-user-{token}");
@@ -68,20 +66,20 @@ async fn build_chat_history_messages_returns_pairs_in_history_order() {
 
     assert_eq!(matched_messages.len(), 4);
     assert!(matches!(matched_messages[0].role, Role::User));
-    assert_timestamped_message(&matched_messages[0].content, &older_user);
+    test_support::assert_timestamped_message(&matched_messages[0].content, &older_user);
     assert!(matches!(matched_messages[1].role, Role::Assistant));
-    assert_timestamped_message(&matched_messages[1].content, &older_assistant);
+    test_support::assert_timestamped_message(&matched_messages[1].content, &older_assistant);
     assert!(matches!(matched_messages[2].role, Role::User));
-    assert_timestamped_message(&matched_messages[2].content, &newer_user);
+    test_support::assert_timestamped_message(&matched_messages[2].content, &newer_user);
     assert!(matches!(matched_messages[3].role, Role::Assistant));
-    assert_timestamped_message(&matched_messages[3].content, &newer_assistant);
+    test_support::assert_timestamped_message(&matched_messages[3].content, &newer_assistant);
 }
 
 #[tokio::test]
 async fn build_chat_history_messages_skips_histories_older_than_24_hours() {
     let _guard = test_support::app_test_guard();
     disable_rag_for_test();
-    let token = unique_token("ttl");
+    let token = test_support::unique_test_token("chat-history-service", "ttl");
     let expired_user = format!("expired-user-{token}");
     let expired_assistant = format!("expired-assistant-{token}");
     let recent_user = format!("recent-user-{token}");
@@ -106,16 +104,16 @@ async fn build_chat_history_messages_skips_histories_older_than_24_hours() {
 
     assert_eq!(matched_messages.len(), 2);
     assert!(matches!(matched_messages[0].role, Role::User));
-    assert_timestamped_message(&matched_messages[0].content, &recent_user);
+    test_support::assert_timestamped_message(&matched_messages[0].content, &recent_user);
     assert!(matches!(matched_messages[1].role, Role::Assistant));
-    assert_timestamped_message(&matched_messages[1].content, &recent_assistant);
+    test_support::assert_timestamped_message(&matched_messages[1].content, &recent_assistant);
 }
 
 #[tokio::test]
 async fn fuzz_query_keeps_matches_from_each_keyword_as_json_lines() {
     let _guard = test_support::app_test_guard();
     disable_rag_for_test();
-    let token = unique_token("fuzz");
+    let token = test_support::unique_test_token("chat-history-service", "fuzz");
     let keyword_one = format!("keyword-one-{token}");
     let keyword_two = format!("keyword-two-{token}");
     let user_content = format!("user contains {keyword_one}");
@@ -144,12 +142,10 @@ async fn save_chat_history_skips_rag_when_disabled() {
     let _guard = test_support::app_test_guard();
     test_support::disable_rag_for_test();
 
-    let token = unique_token("disabled");
+    let token = test_support::unique_test_token("chat-history-service", "disabled");
     let id = save_chat_history(&format!("user-{token}"), &format!("assistant-{token}"))
         .await
         .unwrap();
-
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     assert!(id > 0);
     assert!(
@@ -166,7 +162,7 @@ async fn save_chat_history_indexes_embedding_in_background() {
     let _guard = test_support::app_test_guard();
     test_support::set_rag_model("BAAI/bge-small-en-v1.5");
     let backend = fake_embedder_success(vec![0.25; 384]);
-    let token = unique_token("rag");
+    let token = test_support::unique_test_token("chat-history-service", "rag");
     let id = save_chat_history_with_backend(
         &format!("user-{token}"),
         &format!("assistant-{token}"),
@@ -191,12 +187,10 @@ async fn save_chat_history_returns_success_when_rag_model_is_invalid() {
     let _guard = test_support::app_test_guard();
     test_support::set_rag_model("invalid-model");
 
-    let token = unique_token("invalid-model");
+    let token = test_support::unique_test_token("chat-history-service", "invalid-model");
     let id = save_chat_history(&format!("user-{token}"), &format!("assistant-{token}"))
         .await
         .unwrap();
-
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     assert!(id > 0);
     assert!(
@@ -211,7 +205,7 @@ async fn save_chat_history_returns_success_when_rag_model_is_invalid() {
 #[tokio::test]
 async fn save_chat_history_emits_rag_log_events() {
     let _guard = test_support::app_test_guard();
-    init_test_logging();
+    test_support::init_test_logging();
     test_support::set_rag_model("BAAI/bge-small-en-v1.5");
     let success_id = save_chat_history_with_backend(
         "log-success-user",
@@ -232,9 +226,20 @@ async fn save_chat_history_emits_rag_log_events() {
         .await
         .unwrap();
 
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-    let logs = std::fs::read_to_string("logs/arknights.log").unwrap();
+    let logs = test_support::wait_for_test_logs_contains(&[
+        "rag_index_schedule".to_string(),
+        format!("chat_history_id={success_id}"),
+        "cache_dir=".to_string(),
+        "rag_index_success".to_string(),
+        "rag_index_skipped".to_string(),
+        format!("chat_history_id={skipped_id}"),
+        "reason=\"model_not_configured\"".to_string(),
+        "rag_index_failed".to_string(),
+        format!("chat_history_id={failed_id}"),
+        "unsupported ARKNIGHTS_RAG_MODEL".to_string(),
+    ])
+    .await
+    .unwrap();
     assert!(logs.contains("rag_index_schedule"));
     assert!(logs.contains(&format!("chat_history_id={success_id}")));
     assert!(logs.contains("cache_dir="));
@@ -252,8 +257,8 @@ async fn search_rag_returns_json_lines_for_top_matches() {
     let _guard = test_support::app_test_guard();
     disable_rag_for_test();
 
-    let token = unique_token("search-rag");
-    let ids = vec![
+    let token = test_support::unique_test_token("chat-history-service", "search-rag");
+    let ids = [
         save_chat_history(&format!("user-1-{token}"), &format!("assistant-1-{token}"))
             .await
             .unwrap(),
@@ -371,10 +376,10 @@ async fn search_rag_returns_err_when_rag_model_is_invalid() {
 #[tokio::test]
 async fn search_rag_emits_log_events() {
     let _guard = test_support::app_test_guard();
-    init_test_logging();
+    test_support::init_test_logging();
     disable_rag_for_test();
 
-    let token = unique_token("search-log");
+    let token = test_support::unique_test_token("chat-history-service", "search-log");
     let id = save_chat_history(&format!("user-{token}"), &format!("assistant-{token}"))
         .await
         .unwrap();
@@ -404,9 +409,18 @@ async fn search_rag_emits_log_events() {
     let err = search_rag(vec![failed_query.clone()]).await.unwrap_err();
     assert!(err.to_string().contains("unsupported ARKNIGHTS_RAG_MODEL"));
 
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-    let logs = std::fs::read_to_string("logs/arknights.log").unwrap();
+    let logs = test_support::wait_for_test_logs_contains(&[
+        "rag_search_start".to_string(),
+        "rag_search_success".to_string(),
+        "rag_search_failed".to_string(),
+        format!("query={success_query}"),
+        format!("query={failed_query}"),
+        format!("result_count={expected_result_count}"),
+        "dimension=384".to_string(),
+        "unsupported ARKNIGHTS_RAG_MODEL".to_string(),
+    ])
+    .await
+    .unwrap();
     assert!(logs.contains("rag_search_start"));
     assert!(logs.contains("rag_search_success"));
     assert!(logs.contains("rag_search_failed"));
@@ -417,33 +431,8 @@ async fn search_rag_emits_log_events() {
     assert!(logs.contains("unsupported ARKNIGHTS_RAG_MODEL"));
 }
 
-fn unique_token(label: &str) -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-
-    format!("chat-history-service-{label}-{nanos}")
-}
-
 fn disable_rag_for_test() {
     test_support::disable_rag_for_test();
-}
-
-fn init_test_logging() {
-    TEST_LOG_GUARD.get_or_init(|| {
-        std::fs::create_dir_all("logs").unwrap();
-        let _ = std::fs::remove_file("logs/arknights.log");
-
-        let appender = tracing_appender::rolling::never("logs", "arknights.log");
-        let (non_blocking, guard) = tracing_appender::non_blocking(appender);
-        let _ = tracing_subscriber::fmt()
-            .with_ansi(false)
-            .with_writer(non_blocking)
-            .try_init();
-
-        guard
-    });
 }
 
 fn test_chat_history_vec_dao(model: RagModel) -> anyhow::Result<ChatHistoryVecDao> {
@@ -467,15 +456,6 @@ fn insert_chat_history_with_created_at(
     conn.last_insert_rowid()
 }
 
-fn assert_timestamped_message(actual: &str, expected_suffix: &str) {
-    let (prefix, suffix) = actual
-        .split_once("] ")
-        .expect("message should contain RFC3339 prefix");
-    assert!(prefix.starts_with('['));
-    chrono::DateTime::parse_from_rfc3339(&prefix[1..]).unwrap();
-    assert_eq!(suffix, expected_suffix);
-}
-
 fn embedding_with_offset(model: RagModel, offset: usize, first: f32, second: f32) -> Vec<f32> {
     let mut embedding = vec![0.0; model.dimension()];
     embedding[offset] = first;
@@ -484,19 +464,19 @@ fn embedding_with_offset(model: RagModel, offset: usize, first: f32, second: f32
 }
 
 async fn wait_for_embedding(chat_history_id: i64, model: RagModel) {
-    for _ in 0..20 {
-        if test_chat_history_vec_dao(model)
-            .unwrap()
-            .has_embedding(chat_history_id)
-            .await
-            .unwrap()
-        {
-            return;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
-    }
-
-    panic!("timed out waiting for background rag indexing");
+    test_support::wait_until_async(
+        "background rag indexing",
+        20,
+        Duration::from_millis(25),
+        || async {
+            let has_embedding = test_chat_history_vec_dao(model)?
+                .has_embedding(chat_history_id)
+                .await?;
+            Ok(has_embedding)
+        },
+    )
+    .await
+    .unwrap();
 }
 
 fn fake_embedder_success(embedding: Vec<f32>) -> SharedRagEmbeddingBackend {

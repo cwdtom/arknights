@@ -1,4 +1,4 @@
-use crate::command::command;
+use crate::command;
 use crate::im::base_im;
 use crate::im::base_im::Im;
 use crate::{agent, util};
@@ -94,8 +94,14 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
             continue;
         }
 
-        let content_json: TextContent = serde_json::from_str(&envelope.event.message.content)
-            .expect("can't deserialize text content");
+        let content_json: TextContent = match serde_json::from_str(&envelope.event.message.content)
+        {
+            Ok(v) => v,
+            Err(err) => {
+                error!("payload format error: {:?}", err);
+                continue;
+            }
+        };
         let text = content_json.text;
         if text.trim().is_empty() {
             error!("text is empty");
