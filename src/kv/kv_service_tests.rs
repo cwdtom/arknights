@@ -9,7 +9,7 @@ fn kv_service_source_keeps_only_external_test_module_gate() {
 
 #[tokio::test]
 async fn set_then_get_personal_value_round_trips() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::clear_personal_value().await.unwrap();
 
     set_personal_value("Kal'tsit").await.unwrap();
@@ -22,7 +22,7 @@ async fn set_then_get_personal_value_round_trips() {
 
 #[tokio::test]
 async fn get_personal_value_returns_error_when_missing() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::clear_personal_value().await.unwrap();
 
     let err = get_personal_value().await.unwrap_err();
@@ -31,7 +31,7 @@ async fn get_personal_value_returns_error_when_missing() {
 
 #[tokio::test]
 async fn set_then_get_user_profile_round_trips() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::clear_user_profile().await.unwrap();
 
     set_user_profile("Doctor profile in markdown")
@@ -46,7 +46,7 @@ async fn set_then_get_user_profile_round_trips() {
 
 #[tokio::test]
 async fn get_user_profile_returns_empty_string_when_missing() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::clear_user_profile().await.unwrap();
 
     let value = get_user_profile().await.unwrap();

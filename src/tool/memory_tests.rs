@@ -15,7 +15,7 @@ fn get_user_profile_tool_schema_has_no_required_params() {
 
 #[tokio::test]
 async fn get_user_profile_tool_returns_stored_profile() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::clear_user_profile().await.unwrap();
     kv_service::set_user_profile("Prefers concise answers")
         .await
@@ -44,7 +44,7 @@ fn rewrite_user_profile_tool_schema_requires_markdown() {
 
 #[tokio::test]
 async fn rewrite_user_profile_tool_persists_profile_markdown() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::clear_user_profile().await.unwrap();
 
     let tool = RewriteUserProfileTool::new();
@@ -66,7 +66,7 @@ async fn rewrite_user_profile_tool_persists_profile_markdown() {
 
 #[tokio::test]
 async fn rewrite_user_profile_tool_returns_parse_error_for_invalid_arguments() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     let tool = RewriteUserProfileTool::new();
 
     let result = tool

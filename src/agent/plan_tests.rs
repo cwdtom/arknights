@@ -53,7 +53,7 @@ fn build_system_prompt_includes_user_profile_section() {
 
 #[tokio::test]
 async fn execute_persists_latest_expand_goal_after_replan() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_and_set_lark_env();
     let token = test_support::unique_test_token("plan-tests", "replan");
     let initial_question = format!("initial-question-{token}");
@@ -99,7 +99,7 @@ async fn execute_persists_latest_expand_goal_after_replan() {
 
 #[tokio::test]
 async fn execute_sends_final_answer_via_im_without_background_panic() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_and_set_lark_env();
     let token = test_support::unique_test_token("plan-tests", "send");
     let final_question = format!("final-question-{token}");
@@ -133,7 +133,7 @@ async fn execute_sends_final_answer_via_im_without_background_panic() {
 
 #[tokio::test]
 async fn execute_with_prefilled_answer_sends_final_message() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_and_set_lark_env();
     let final_answer = format!(
         "prefilled-answer-{}",

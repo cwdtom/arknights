@@ -13,7 +13,7 @@ fn personal_resp_deserializes_contents() {
 
 #[tokio::test]
 async fn personal_message_returns_error_when_personal_role_missing() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::clear_personal_value().await.unwrap();
 
     let err = personal_message("需要改写的内容".to_string())

@@ -112,7 +112,7 @@ fn detect_local_model_bundle_reports_missing_tokenizer_files() {
 
 #[tokio::test]
 async fn embed_text_uses_backend_override_without_loading_model() {
-    let _guard = test_support::lock_test_env();
+    let _guard = test_support::lock_test_env_async().await;
     let backend = FakeRagEmbedder::success(vec![0.1; 384]);
     let embedding = embed_text_with_backend(
         RagRuntimeConfig {
@@ -129,7 +129,7 @@ async fn embed_text_uses_backend_override_without_loading_model() {
 
 #[tokio::test]
 async fn embed_text_returns_backend_failure() {
-    let _guard = test_support::lock_test_env();
+    let _guard = test_support::lock_test_env_async().await;
     let backend = FakeRagEmbedder::failure("forced failure");
     let err = embed_text_with_backend(
         RagRuntimeConfig {

@@ -16,7 +16,7 @@ fn chat_history_service_source_keeps_only_external_test_module_gate() {
 
 #[tokio::test]
 async fn save_chat_history_persists_pair_and_returns_positive_id() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_for_test();
     let token = test_support::unique_test_token("chat-history-service", "save");
     let user_content = format!("user-{token}");
@@ -43,7 +43,7 @@ async fn save_chat_history_persists_pair_and_returns_positive_id() {
 
 #[tokio::test]
 async fn build_chat_history_messages_returns_pairs_in_history_order() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_for_test();
     let token = test_support::unique_test_token("chat-history-service", "build");
     let older_user = format!("older-user-{token}");
@@ -77,7 +77,7 @@ async fn build_chat_history_messages_returns_pairs_in_history_order() {
 
 #[tokio::test]
 async fn build_chat_history_messages_skips_histories_older_than_24_hours() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_for_test();
     let token = test_support::unique_test_token("chat-history-service", "ttl");
     let expired_user = format!("expired-user-{token}");
@@ -111,7 +111,7 @@ async fn build_chat_history_messages_skips_histories_older_than_24_hours() {
 
 #[tokio::test]
 async fn fuzz_query_keeps_matches_from_each_keyword_as_json_lines() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_for_test();
     let token = test_support::unique_test_token("chat-history-service", "fuzz");
     let keyword_one = format!("keyword-one-{token}");
@@ -139,7 +139,7 @@ async fn fuzz_query_keeps_matches_from_each_keyword_as_json_lines() {
 
 #[tokio::test]
 async fn save_chat_history_skips_rag_when_disabled() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::disable_rag_for_test();
 
     let token = test_support::unique_test_token("chat-history-service", "disabled");
@@ -159,7 +159,7 @@ async fn save_chat_history_skips_rag_when_disabled() {
 
 #[tokio::test]
 async fn save_chat_history_indexes_embedding_in_background() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::set_rag_model("BAAI/bge-small-en-v1.5");
     let backend = fake_embedder_success(vec![0.25; 384]);
     let token = test_support::unique_test_token("chat-history-service", "rag");
@@ -184,7 +184,7 @@ async fn save_chat_history_indexes_embedding_in_background() {
 
 #[tokio::test]
 async fn save_chat_history_returns_success_when_rag_model_is_invalid() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::set_rag_model("invalid-model");
 
     let token = test_support::unique_test_token("chat-history-service", "invalid-model");
@@ -204,7 +204,7 @@ async fn save_chat_history_returns_success_when_rag_model_is_invalid() {
 
 #[tokio::test]
 async fn save_chat_history_emits_rag_log_events() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::init_test_logging();
     test_support::set_rag_model("BAAI/bge-small-en-v1.5");
     let success_id = save_chat_history_with_backend(
@@ -254,7 +254,7 @@ async fn save_chat_history_emits_rag_log_events() {
 
 #[tokio::test]
 async fn search_rag_returns_json_lines_for_top_matches() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_for_test();
 
     let token = test_support::unique_test_token("chat-history-service", "search-rag");
@@ -340,7 +340,7 @@ async fn search_rag_returns_json_lines_for_top_matches() {
 
 #[tokio::test]
 async fn search_rag_returns_err_when_keywords_are_empty_after_trim() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_for_test();
 
     let err = search_rag(vec![" ".to_string(), "\t".to_string()])
@@ -352,7 +352,7 @@ async fn search_rag_returns_err_when_keywords_are_empty_after_trim() {
 
 #[tokio::test]
 async fn search_rag_returns_err_when_rag_is_disabled() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     disable_rag_for_test();
 
     let err = search_rag(vec!["hello".to_string()]).await.unwrap_err();
@@ -365,7 +365,7 @@ async fn search_rag_returns_err_when_rag_is_disabled() {
 
 #[tokio::test]
 async fn search_rag_returns_err_when_rag_model_is_invalid() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::set_rag_model("invalid-model");
 
     let err = search_rag(vec!["hello".to_string()]).await.unwrap_err();
@@ -375,7 +375,7 @@ async fn search_rag_returns_err_when_rag_model_is_invalid() {
 
 #[tokio::test]
 async fn search_rag_emits_log_events() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::init_test_logging();
     disable_rag_for_test();
 

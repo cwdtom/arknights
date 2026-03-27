@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tokio::test]
 async fn make_notify_choice_returns_true_when_previous_result_is_missing() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     let dao = TimerDao::new().unwrap();
     let task_id = unique_task_id("notify-first-run");
     let task = NewTimerTask {

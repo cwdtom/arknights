@@ -3,8 +3,9 @@ use anyhow::anyhow;
 use std::future::Future;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex, MutexGuard, OnceLock};
+use std::sync::{LazyLock, Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::sync::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 
 const PERSONAL_KEY: &str = "PERSONAL";
 const USER_PROFILE_KEY: &str = "USER_PROFILE";
@@ -20,16 +21,20 @@ static TEST_DB_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
     let pid = std::process::id();
     std::env::temp_dir().join(format!("arknights-test-{pid}-{nanos}.db"))
 });
-static TEST_ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+static TEST_ENV_LOCK: LazyLock<AsyncMutex<()>> = LazyLock::new(|| AsyncMutex::new(()));
 static TEST_LOGS: LazyLock<Mutex<Vec<u8>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 static TEST_LOG_SUBSCRIBER: OnceLock<()> = OnceLock::new();
 
-pub(crate) fn lock_test_env() -> MutexGuard<'static, ()> {
-    TEST_ENV_LOCK.lock().unwrap_or_else(|err| err.into_inner())
+pub(crate) fn lock_test_env() -> AsyncMutexGuard<'static, ()> {
+    TEST_ENV_LOCK.blocking_lock()
 }
 
-pub(crate) fn app_test_guard() -> MutexGuard<'static, ()> {
-    let guard = lock_test_env();
+pub(crate) async fn lock_test_env_async() -> AsyncMutexGuard<'static, ()> {
+    TEST_ENV_LOCK.lock().await
+}
+
+pub(crate) async fn app_test_guard() -> AsyncMutexGuard<'static, ()> {
+    let guard = lock_test_env_async().await;
     configure_app_test_env();
     guard
 }

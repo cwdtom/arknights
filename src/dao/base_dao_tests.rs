@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tokio::test]
 async fn new_reads_env_path_and_creates_db_file() {
-    let _guard = test_support::lock_test_env();
+    let _guard = test_support::lock_test_env_async().await;
     let path = unique_db_path_with_parent("env");
     let original = std::env::var(DB_PATH_ENV_VAR).ok();
 

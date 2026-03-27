@@ -41,7 +41,7 @@ async fn insert_tool_returns_parse_error_for_invalid_arguments() {
 
 #[tokio::test]
 async fn timer_tools_support_full_crud_flow() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     let id = unique_timer_id("crud");
 
     let insert = Insert::new();

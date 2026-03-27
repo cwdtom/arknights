@@ -10,7 +10,7 @@ async fn execute_rejects_invalid_command() {
 
 #[tokio::test]
 async fn execute_set_personal_persists_value() {
-    let _guard = test_support::app_test_guard();
+    let _guard = test_support::app_test_guard().await;
     test_support::clear_personal_value().await.unwrap();
 
     execute("/set_personal Amiya".to_string()).await.unwrap();

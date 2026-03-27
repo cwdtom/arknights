@@ -5,14 +5,11 @@ use super::timer_service::{
 use crate::dao::timer_dao::{NewTimerTask, TimerDao};
 use crate::test_support;
 use chrono::{Local, TimeZone};
-use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-
-static TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 #[tokio::test(flavor = "current_thread")]
 async fn init_timer_starts_background_task_without_blocking_caller() {
-    let _guard = TEST_LOCK.lock().unwrap();
+    let _guard = test_support::app_test_guard().await;
 
     let start = Instant::now();
     init_timer();
@@ -27,14 +24,13 @@ async fn init_timer_starts_background_task_without_blocking_caller() {
 
 #[test]
 fn get_thread_local_timer_id_is_none_outside_timer_scope() {
-    let _guard = TEST_LOCK.lock().unwrap();
+    let _guard = test_support::lock_test_env();
     assert_eq!(get_thread_local_timer_id(), None);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn get_by_id_returns_created_timer_task() {
-    let _guard = TEST_LOCK.lock().unwrap();
-    let _env_guard = test_support::app_test_guard();
+    let _env_guard = test_support::app_test_guard().await;
     let dao = TimerDao::new().unwrap();
     let task_id = unique_task_id("get-by-id");
     let task = NewTimerTask {
@@ -55,8 +51,7 @@ async fn get_by_id_returns_created_timer_task() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn create_persists_timer_task_with_computed_next_trigger_at() {
-    let _guard = TEST_LOCK.lock().unwrap();
-    let _env_guard = test_support::app_test_guard();
+    let _env_guard = test_support::app_test_guard().await;
     let input = CreateTimerTask {
         id: unique_task_id("create"),
         prompt: "每天早上提醒喝水".to_string(),
@@ -75,8 +70,7 @@ async fn create_persists_timer_task_with_computed_next_trigger_at() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn list_returns_created_tasks() {
-    let _guard = TEST_LOCK.lock().unwrap();
-    let _env_guard = test_support::app_test_guard();
+    let _env_guard = test_support::app_test_guard().await;
     let first = CreateTimerTask {
         id: unique_task_id("list-a"),
         prompt: "task a".to_string(),
@@ -101,8 +95,7 @@ async fn list_returns_created_tasks() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn update_rewrites_timer_task_fields() {
-    let _guard = TEST_LOCK.lock().unwrap();
-    let _env_guard = test_support::app_test_guard();
+    let _env_guard = test_support::app_test_guard().await;
     let id = unique_task_id("update");
     create(CreateTimerTask {
         id: id.clone(),
@@ -131,8 +124,7 @@ async fn update_rewrites_timer_task_fields() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn update_allows_zero_remaining_runs_to_pause_task() {
-    let _guard = TEST_LOCK.lock().unwrap();
-    let _env_guard = test_support::app_test_guard();
+    let _env_guard = test_support::app_test_guard().await;
     let id = unique_task_id("pause");
     create(CreateTimerTask {
         id: id.clone(),
@@ -159,8 +151,7 @@ async fn update_allows_zero_remaining_runs_to_pause_task() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn remove_deletes_timer_task() {
-    let _guard = TEST_LOCK.lock().unwrap();
-    let _env_guard = test_support::app_test_guard();
+    let _env_guard = test_support::app_test_guard().await;
     let id = unique_task_id("remove");
     create(CreateTimerTask {
         id: id.clone(),
