@@ -39,7 +39,7 @@ struct PersonalResp {
     contents: Vec<String>,
 }
 
-pub async fn personal_message(message: String) -> anyhow::Result<String> {
+pub async fn send_personal_message(message: String) -> anyhow::Result<String> {
     // set system prompt
     let system = Message::new(Role::System, PERSONAL_PROMPT.to_string());
     let mut messages = vec![system];

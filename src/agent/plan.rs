@@ -219,7 +219,7 @@ async fn send_final_answer(question: String, content: String) -> anyhow::Result<
         Err(err) => error!("Failed to save chat history: {}", err),
     }
 
-    match personal::personal_message(content.clone()).await {
+    match personal::send_personal_message(content.clone()).await {
         Ok(c) => Ok(c),
         Err(err) => {
             error!("Failed to personalize message: {}", err);
