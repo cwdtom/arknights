@@ -1,7 +1,8 @@
 use super::*;
-use chrono::{DateTime, Local, TimeZone};
+use chrono::{DateTime, Local, TimeZone, Utc};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::time::{Duration, sleep};
 
 #[tokio::test]
 async fn timer_dao_create_returns_saved_task() {
@@ -117,6 +118,11 @@ async fn timer_dao_update_rewrites_mutable_fields() {
     ))
     .await
     .unwrap();
+    let before = dao.get("timer_update").await.unwrap().unwrap();
+    let before_updated = DateTime::parse_from_rfc3339(&before.updated_at).unwrap();
+    while Utc::now().timestamp_millis() <= before_updated.timestamp_millis() {
+        sleep(Duration::from_millis(1)).await;
+    }
 
     let updated = UpdateTimerTask {
         id: "timer_update".to_string(),
@@ -128,13 +134,15 @@ async fn timer_dao_update_rewrites_mutable_fields() {
     dao.update(&updated).await.unwrap();
 
     let row = dao.get("timer_update").await.unwrap().unwrap();
+    let after_updated = DateTime::parse_from_rfc3339(&row.updated_at).unwrap();
     assert_eq!(row.prompt, updated.prompt);
     assert_eq!(row.cron_expr, updated.cron_expr);
     assert_eq!(row.remaining_runs, updated.remaining_runs);
     assert_eq!(row.next_trigger_at, Some(updated.next_trigger_at));
     assert_eq!(row.last_completed_at, None);
     assert_eq!(row.last_result, None);
-    assert_ne!(row.created_at, row.updated_at);
+    assert_eq!(row.created_at, before.created_at);
+    assert!(after_updated > before_updated);
 
     cleanup_db(&path);
 }
