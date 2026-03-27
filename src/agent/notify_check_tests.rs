@@ -18,7 +18,9 @@ async fn make_notify_choice_returns_true_when_previous_result_is_missing() {
     };
     dao.create(&task).await.unwrap();
 
-    let should_notify = make_notify_choice("本次提醒内容".to_string(), task_id).await.unwrap();
+    let should_notify = make_notify_choice("本次提醒内容".to_string(), task_id)
+        .await
+        .unwrap();
 
     assert!(should_notify);
 }

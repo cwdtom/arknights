@@ -32,8 +32,8 @@ pub async fn make_notify_choice(message: String, task_id: String) -> anyhow::Res
         Some(timer) => timer,
         None => {
             error!("Task {} not found", task_id);
-            return Ok(false)
-        },
+            return Ok(false);
+        }
     };
     let pre_message = match timer.last_result {
         Some(r) => r,

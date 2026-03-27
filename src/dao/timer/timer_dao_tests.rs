@@ -59,6 +59,34 @@ async fn timer_dao_list_active_returns_only_positive_remaining_runs() {
 }
 
 #[tokio::test]
+async fn timer_dao_list_returns_all_tasks_sorted_by_next_trigger_at() {
+    let path = unique_db_path("list");
+    let dao = TimerDao::with_path(&path).unwrap();
+    dao.create(&build_task(
+        "timer_later",
+        2,
+        &local_rfc3339(2026, 3, 26, 10, 0, 0),
+    ))
+    .await
+    .unwrap();
+    dao.create(&build_task(
+        "timer_earlier",
+        1,
+        &local_rfc3339(2026, 3, 26, 9, 0, 0),
+    ))
+    .await
+    .unwrap();
+
+    let rows = dao.list().await.unwrap();
+
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].id, "timer_earlier");
+    assert_eq!(rows[1].id, "timer_later");
+
+    cleanup_db(&path);
+}
+
+#[tokio::test]
 async fn timer_dao_cancel_sets_remaining_runs_to_zero() {
     let path = unique_db_path("cancel");
     let dao = TimerDao::with_path(&path).unwrap();
@@ -79,12 +107,65 @@ async fn timer_dao_cancel_sets_remaining_runs_to_zero() {
 }
 
 #[tokio::test]
+async fn timer_dao_update_rewrites_mutable_fields() {
+    let path = unique_db_path("update");
+    let dao = TimerDao::with_path(&path).unwrap();
+    dao.create(&build_task(
+        "timer_update",
+        2,
+        &local_rfc3339(2026, 3, 26, 9, 0, 0),
+    ))
+    .await
+    .unwrap();
+
+    let updated = UpdateTimerTask {
+        id: "timer_update".to_string(),
+        prompt: "updated prompt".to_string(),
+        cron_expr: "0 30 9 * * *".to_string(),
+        remaining_runs: 5,
+        next_trigger_at: local_rfc3339(2026, 3, 26, 9, 30, 0),
+    };
+    dao.update(&updated).await.unwrap();
+
+    let row = dao.get("timer_update").await.unwrap().unwrap();
+    assert_eq!(row.prompt, updated.prompt);
+    assert_eq!(row.cron_expr, updated.cron_expr);
+    assert_eq!(row.remaining_runs, updated.remaining_runs);
+    assert_eq!(row.next_trigger_at, Some(updated.next_trigger_at));
+    assert_eq!(row.last_completed_at, None);
+    assert_eq!(row.last_result, None);
+    assert_ne!(row.created_at, row.updated_at);
+
+    cleanup_db(&path);
+}
+
+#[tokio::test]
 async fn timer_dao_get_returns_none_for_missing_id() {
     let path = unique_db_path("missing");
     let dao = TimerDao::with_path(&path).unwrap();
 
     let row = dao.get("missing").await.unwrap();
 
+    assert!(row.is_none());
+
+    cleanup_db(&path);
+}
+
+#[tokio::test]
+async fn timer_dao_remove_deletes_existing_task() {
+    let path = unique_db_path("remove");
+    let dao = TimerDao::with_path(&path).unwrap();
+    dao.create(&build_task(
+        "timer_remove",
+        2,
+        &local_rfc3339(2026, 3, 26, 9, 0, 0),
+    ))
+    .await
+    .unwrap();
+
+    dao.remove("timer_remove").await.unwrap();
+
+    let row = dao.get("timer_remove").await.unwrap();
     assert!(row.is_none());
 
     cleanup_db(&path);
