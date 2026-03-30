@@ -51,12 +51,7 @@ pub async fn post_multipart(
 ) -> anyhow::Result<String> {
     let client = build_client()?;
     let has_auth = !api_key.trim().is_empty();
-    info!(
-        url,
-        has_auth,
-        body = %request_summary,
-        "multipart_request"
-    );
+    log_multipart_request(url, has_auth, request_summary);
     let mut request = client
         .post(url)
         .header(ACCEPT_ENCODING, "identity")
@@ -73,6 +68,15 @@ pub async fn post_multipart(
         .with_context(|| format!("send POST request failed: {url}"))?;
 
     read_response_body_with_log(url, response).await
+}
+
+fn log_multipart_request(url: &str, has_auth: bool, request_summary: &Value) {
+    info!(
+        url,
+        has_auth,
+        body = %request_summary,
+        "multipart_request"
+    );
 }
 
 pub async fn get(url: &str) -> anyhow::Result<String> {
