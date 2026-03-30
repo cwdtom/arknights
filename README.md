@@ -35,6 +35,7 @@ Copy `.env.example` to `.env` and fill in the values you need.
 | `BOCHA_API_KEY` | Recommended | Required when `internet_search` is invoked. |
 | `ARKNIGHTS_DB_PATH` | No | SQLite database path. Defaults to `arknights.db`. |
 | `ARKNIGHTS_RAG_MODEL` | No | Enables async embedding/indexing for saved chat history. Leave empty to disable. |
+| `BASH_TOOL_ENABLE` | No | High-risk switch. Enables `system_bash` and gives the agent read/write access to all files the service process can access. Defaults to `false` when unset. |
 
 Supported `ARKNIGHTS_RAG_MODEL` values:
 
@@ -62,7 +63,8 @@ cargo run
 ```
 
 After the service starts, the process opens the Lark websocket client and the
-background timer loop. Send a text message to the configured Feishu/Lark app.
+background timer loop. Logs are also written to `logs/arknights.log`. Send a
+text message to the configured Feishu/Lark app.
 
 ## Usage Guide
 
@@ -105,6 +107,10 @@ cargo run
 cargo test
 cargo clippy
 ```
+
+`cargo test` uses the project's test support to inject temporary defaults for
+the required Lark variables and database path, so it does not require a real
+DeepSeek or Lark credential set.
 
 ## Architecture
 
@@ -168,7 +174,12 @@ src/
 │   ├── internet.rs            # `internet_search`, `internet_curl`
 │   ├── memory.rs              # Memory search, history, and user profile tools
 │   ├── process_control.rs     # `ask_user`, `done`, `replan`
-│   ├── system.rs              # `system_date`
+│   ├── system/
+│   │   ├── bash.rs            # `system_bash` tool definition
+│   │   ├── bash/runtime.rs    # bash execution, timeout, and cleanup
+│   │   ├── date.rs            # `system_date`
+│   │   ├── mod.rs             # System tool exports
+│   │   └── tests.rs           # System tool tests
 │   ├── timer/                 # `timer_get`, `timer_list`, CRUD timer tools
 │   └── mod.rs                 # Tool registry
 └── util/
@@ -179,6 +190,7 @@ src/
 ## Built-in Tools
 
 - `system_date`
+- `system_bash`
 - `internet_search`
 - `internet_curl`
 - `memory_search_tool`
