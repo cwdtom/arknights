@@ -29,7 +29,7 @@ pub(super) async fn run_bash_command(command_text: String) -> String {
 
 fn announce_command_start(command_text: &str) {
     if timer::timer_service::get_thread_local_timer_id().is_none() {
-        im::base_im::async_send(format!(
+        im::base_im::async_send_text(format!(
             "EXEC {}",
             command_text.lines().next().unwrap_or("")
         ));

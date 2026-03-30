@@ -1,3 +1,4 @@
+use crate::agent::plan::{File};
 use crate::im::lark;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
@@ -14,6 +15,9 @@ pub trait Im: Send + Sync {
 
     /// reply by emoji
     async fn reply_emoji(&mut self, message_id: String, emoji: String) -> anyhow::Result<()>;
+
+    /// send file
+    async fn send_file(&mut self, file: File) -> anyhow::Result<()>;
 }
 
 /// init lark
@@ -26,7 +30,25 @@ pub fn init_lark() {
     }
 }
 
-pub fn async_send(content: String) {
+pub fn async_send_files(files: Vec<File>) {
+    tokio::spawn(async move {
+        if files.is_empty() {
+            return;
+        }
+
+        let mut im = IM.get().expect("IM not initialized").lock().await;
+        for f in files {
+            match im.send_file(f).await {
+                Ok(_) => (),
+                Err(err) => {
+                    error!("Send file failed: {:?}", err);
+                }
+            };
+        }
+    });
+}
+
+pub fn async_send_text(content: String) {
     tokio::spawn(async move {
         if content.is_empty() {
             return;

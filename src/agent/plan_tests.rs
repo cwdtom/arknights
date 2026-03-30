@@ -11,13 +11,12 @@ fn plan_resp_defaults_is_done_to_false() {
     let json = r#"{
         "expand_goal": "collect context with explicit scope",
         "plans": ["collect context"],
-        "tools": ["internet"],
-        "content": ""
+        "tools": ["internet"]
     }"#;
 
     let resp: PlanResp = serde_json::from_str(json).unwrap();
     assert!(!resp.is_done);
-    assert_eq!(resp.content, "");
+    assert!(resp.content.is_none());
     assert_eq!(resp.expand_goal, "collect context with explicit scope");
     assert_eq!(resp.plans.len(), 1);
     assert_eq!(resp.plans[0], "collect context");
@@ -32,13 +31,18 @@ fn plan_resp_accepts_done_payload() {
         "expand_goal": "final answer with explicit scope",
         "plans": [],
         "tools": [],
-        "content": "final answer",
+        "content": {
+            "text": "final answer",
+            "files": []
+        },
         "is_done": true
     }"#;
 
     let resp: PlanResp = serde_json::from_str(json).unwrap();
     assert!(resp.is_done);
-    assert_eq!(resp.content, "final answer");
+    let content = resp.content.expect("done payload should include content");
+    assert_eq!(content.text, "final answer");
+    assert!(content.files.is_empty());
     assert_eq!(resp.expand_goal, "final answer with explicit scope");
     assert!(resp.plans.is_empty());
 }
@@ -65,7 +69,10 @@ async fn execute_persists_latest_expand_goal_after_replan() {
             "expand_goal": "{final_question}",
             "plans": [],
             "tools": [],
-            "content": "{final_answer}",
+            "content": {{
+                "text": "{final_answer}",
+                "files": []
+            }},
             "is_done": true
         }}"#
     ));
@@ -109,7 +116,10 @@ async fn execute_sends_final_answer_via_im_without_background_panic() {
             "expand_goal": "{final_question}",
             "plans": [],
             "tools": [],
-            "content": "{final_answer}",
+            "content": {{
+                "text": "{final_answer}",
+                "files": []
+            }},
             "is_done": true
         }}"#
     ));
@@ -151,7 +161,10 @@ async fn execute_with_prefilled_answer_sends_final_message() {
         llm: Llm {
             llm_provider: Box::new(TestLlm::new(vec![])),
         },
-        answer: Some(final_answer.clone()),
+        answer: Some(Content {
+            text: final_answer.clone(),
+            files: vec![],
+        }),
     };
 
     let result = plan.execute().await.unwrap();
@@ -229,6 +242,10 @@ impl Im for FakeIm {
     }
 
     async fn reply_emoji(&mut self, _message_id: String, _emoji: String) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn send_file(&mut self, _file: File) -> anyhow::Result<()> {
         Ok(())
     }
 }

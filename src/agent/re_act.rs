@@ -14,6 +14,9 @@ Primary rule:
 
 Output contract:
 - Keep the tool args language as same as the user's message.
+- After generating the file, remember the actual path.
+  When calling process_control_done, return the answer together with the file information.
+  Do not invent paths yourself.
 "#;
 
 /// reAct resp format
@@ -200,7 +203,7 @@ mod tests {
 
         let results = react.act(vec![tool_call]).await.unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].content, "task finished");
+        assert_eq!(results[0].content, r#"{"answer":"task finished"}"#);
         assert!(results[0].done);
         assert!(!results[0].replan);
     }

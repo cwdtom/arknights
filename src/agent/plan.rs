@@ -30,30 +30,49 @@ Then, given the expanded question and any previous execution results, produce a 
 ## Decision Rules
 1. If the question has NOT been fully answered yet:
    - Decompose it into ordered subtasks.
-   - Assign relevant tools to each subtask.
-   - Set `is_done` to false and leave `content` empty.
+   - Put the union of required tool groups into `tools`.
+   - Set `is_done` to false and omit `content`.
 2. If the question HAS been fully answered:
    - Set `is_done` to true.
-   - Write the final answer in `content`.
+   - Write the final answer in `content` with `text` and `files`(no file set empty list).
 3. If the current plan failed or is insufficient:
    - Reformulate a new plan with alternative subtasks and tools.
-   - Set `is_done` to false and leave `content` empty.
+   - Set `is_done` to false and omit `content`.
 4. For questions involving relative time, be sure to check the current time first.
 5. Each subtask MUST contain the necessary information and be able to be completed independently.
 
 ## Language Rule
-`content`, `expand_goal` and every `plan` field must be written in the same language as the user's message.
+`content.text`, `expand_goal` and every `plan` field must be written in the same language as the user's message.
 "#;
 
-const JSON_FORMAT: &str = r#"{
-  "expand_goal": "<expanded question>",
-  "plans": [
-    "<subtask description>",
-    "<subtask description>"
-  ],
-  "tools": ["internet", "memory"],
-  "content": "<final answer>",
-  "is_done": false
+const JSON_FORMAT: &str = r#"
+// unfinished
+{
+    "expand_goal": "<expanded question>",
+    "plans": ["<subtask 1>", "<subtask 2>"],
+    "tools": ["internet", "memory"],
+    "is_done": false
+}
+
+// finished
+{
+    "expand_goal": "<expanded question>",
+    "plans": [
+        "<subtask description>",
+        "<subtask description>"
+    ],
+    "tools": ["internet", "memory"],
+    "content": {
+        "text": "<final answer text>",
+        "files": [
+          {
+            "type": "<file type>",
+            "name": "<file name>",
+            "path": "<file path>"
+          }
+        ]
+    },
+    "is_done": true
 }
 "#;
 
@@ -64,7 +83,7 @@ pub struct Plan {
     tools: HashSet<String>,
     llm: Llm,
     // if first plan can answer
-    answer: Option<String>,
+    answer: Option<Content>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -73,8 +92,21 @@ pub struct PlanResp {
     tools: HashSet<String>,
     #[serde(default)]
     is_done: bool,
-    content: String,
+    content: Option<Content>,
     expand_goal: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Content {
+    pub text: String,
+    pub files: Vec<File>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct File {
+    pub r#type: String,
+    pub name: String,
+    pub path: String,
 }
 
 impl Plan {
@@ -105,13 +137,17 @@ impl Plan {
 
                 // plan already answer
                 if plan_resp.is_done {
-                    return Ok(Plan {
-                        question: plan_resp.expand_goal,
-                        plans: vec![],
-                        tools: HashSet::new(),
-                        llm,
-                        answer: Some(plan_resp.content),
-                    });
+                    return if plan_resp.content.is_some() {
+                        Ok(Plan {
+                            question: plan_resp.expand_goal,
+                            plans: vec![],
+                            tools: HashSet::new(),
+                            llm,
+                            answer: plan_resp.content,
+                        })
+                    } else {
+                        Err(anyhow!("llm response is empty"))
+                    }
                 }
 
                 // send expand goal
@@ -169,7 +205,10 @@ impl Plan {
                     self.question = plan_resp.expand_goal.clone();
 
                     if plan_resp.is_done {
-                        return send_final_answer(self.question.clone(), plan_resp.content).await;
+                        return match plan_resp.content {
+                            Some(c) => send_final_answer(self.question.clone(), c).await,
+                            None => Err(anyhow!("llm response is empty")),
+                        }
                     } else {
                         // update plans
                         self.llm.push_message(choice.message.clone());
@@ -202,29 +241,37 @@ fn build_system_prompt(user_profile: &str) -> String {
     )
 }
 
-async fn send_final_answer(question: String, content: String) -> anyhow::Result<String> {
+async fn send_final_answer(question: String, content: Content) -> anyhow::Result<String> {
     // check notify values
     if let Some(timer_id) = timer::timer_service::get_thread_local_timer_id() {
-        let is_notify = make_notify_choice(content.clone(), timer_id).await?;
-        if is_notify {
-            im::base_im::async_send(content.clone());
+        let is_notify = make_notify_choice(content.text.clone(), timer_id).await?;
+        if !is_notify {
+            return Ok(content.text);
         }
-        return Ok(content);
     }
 
     // save chat history
-    match memory::chat_history_service::save_chat_history(question.as_str(), content.as_str()).await
-    {
+    match memory::chat_history_service::save_chat_history(&question, &content.text).await {
         Ok(_) => {}
         Err(err) => error!("Failed to save chat history: {}", err),
     }
 
-    match personal::send_personal_message(content.clone()).await {
-        Ok(c) => Ok(c),
+    match personal::personal_message(content.text.clone()).await {
+        Ok(cs) => {
+            // send personal answers
+            for c in &cs {
+                im::base_im::async_send_text(c.clone());
+            }
+
+            // send files
+            im::base_im::async_send_files(content.files.clone());
+            Ok(cs.join("\n"))
+        },
         Err(err) => {
             error!("Failed to personalize message: {}", err);
-            im::base_im::async_send(content.clone());
-            Ok(content)
+            im::base_im::async_send_text(content.text.clone());
+            im::base_im::async_send_files(content.files.clone());
+            Ok(content.text)
         }
     }
 }
@@ -234,7 +281,7 @@ fn send_process_message(content: String) {
         return;
     }
 
-    im::base_im::async_send(content);
+    im::base_im::async_send_text(content);
 }
 
 /// fake build tool call, return tool call and tool result

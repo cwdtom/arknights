@@ -83,9 +83,11 @@ pub struct Done {
     pub base_tool: BaseTool,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct DoneArgs {
     answer: String,
+    file_paths: Option<Vec<String>>,
 }
 
 #[async_trait::async_trait]
@@ -107,6 +109,14 @@ impl LlmTool for Done {
                     "answer": {
                         "type": "string",
                         "description": "final answer"
+                    },
+                    "file_paths": {
+                        "type": "array",
+                        "description": "Full file path array.",
+                        "items": {
+                            "type": "string",
+                            "description": "Full file path."
+                        }
                     }
                 }),
                 vec!["answer".to_string()],
@@ -115,15 +125,7 @@ impl LlmTool for Done {
     }
 
     async fn deep_seek_call(&self, tool_call: &ToolCall) -> String {
-        let args: DoneArgs = match serde_json::from_str(&tool_call.function.arguments) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("failed to parse done arguments: {:?}", e);
-                return format!("Error: invalid arguments: {}", e);
-            }
-        };
-
-        args.answer
+        tool_call.function.arguments.clone()
     }
 }
 
@@ -223,7 +225,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn done_tool_returns_answer() {
+    async fn done_tool_returns_raw_arguments() {
         let tool = Done::new();
         let tool_call = ToolCall {
             id: "call_done".to_string(),
@@ -235,7 +237,7 @@ mod tests {
         };
 
         let answer = tool.deep_seek_call(&tool_call).await;
-        assert_eq!(answer, "all done");
+        assert_eq!(answer, r#"{"answer":"all done"}"#);
     }
 
     #[tokio::test]
@@ -255,7 +257,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn done_tool_returns_parse_error_for_invalid_json() {
+    async fn done_tool_preserves_invalid_json_arguments() {
         let tool = Done::new();
         let tool_call = ToolCall {
             id: "call_done".to_string(),
@@ -267,6 +269,6 @@ mod tests {
         };
 
         let result = tool.deep_seek_call(&tool_call).await;
-        assert!(result.starts_with("Error: invalid arguments:"));
+        assert_eq!(result, "{");
     }
 }

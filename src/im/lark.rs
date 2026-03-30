@@ -1,7 +1,9 @@
+use crate::agent::plan::File;
 use crate::command;
 use crate::im::base_im;
 use crate::im::base_im::Im;
 use crate::{agent, util};
+use anyhow::Context;
 use chrono::Utc;
 use open_lark::openlark_client;
 use openlark_client::ws_client::{EventDispatcherHandler, LarkWsClient};
@@ -17,6 +19,10 @@ static PENDING_ASK: LazyLock<tokio::sync::Mutex<Option<oneshot::Sender<String>>>
 static PLAN_LOCK: LazyLock<tokio::sync::Mutex<()>> = LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 const BASE_URL: &str = "https://open.feishu.cn";
+const BYTES_PER_MEBIBYTE: u64 = 1024 * 1024;
+const FILE_UPLOAD_URL: &str = "https://open.feishu.cn/open-apis/im/v1/files";
+const MAX_UPLOAD_FILE_SIZE_BYTES: u64 = 20 * BYTES_PER_MEBIBYTE;
+const MAX_UPLOAD_FILE_SIZE_LABEL: &str = "20MB";
 const SEND_URL: &str = "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id";
 const TOKEN_URL: &str = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
 static LARK_APP_ID: LazyLock<String> =
@@ -53,6 +59,40 @@ struct Message {
 #[derive(Debug, Deserialize)]
 struct TextContent {
     text: String,
+}
+
+#[derive(Deserialize)]
+struct UploadFileData {
+    file_key: String,
+}
+
+#[derive(Deserialize)]
+struct UploadFileResp {
+    code: i32,
+    #[serde(default)]
+    msg: String,
+    data: Option<UploadFileData>,
+}
+
+fn validate_upload_file_size(file_size: u64) -> anyhow::Result<()> {
+    if file_size > MAX_UPLOAD_FILE_SIZE_BYTES {
+        anyhow::bail!(
+            "upload file too large: size={} bytes exceeds {} limit",
+            file_size,
+            MAX_UPLOAD_FILE_SIZE_LABEL
+        );
+    }
+
+    Ok(())
+}
+
+fn validate_upload_file_type(r#type: &str) -> String {
+    let allow_types = vec!["opus", "mp4", "pdf", "doc", "xls", "ppt"];
+    if allow_types.contains(&r#type) {
+        r#type.to_string()
+    } else {
+        "stream".to_string()
+    }
 }
 
 pub async fn build_wss() -> anyhow::Result<()> {
@@ -149,7 +189,7 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
                     );
                 }
                 Err(_) => {
-                    base_im::async_send("command not found.".to_string());
+                    base_im::async_send_text("command not found.".to_string());
                 }
             }
             continue;
@@ -167,7 +207,7 @@ async fn process_payload_loop(mut payload_rx: mpsc::UnboundedReceiver<Vec<u8>>) 
                 }
                 Err(e) => {
                     error!("plan init error: {:?}", e);
-                    base_im::async_send("critical error occurred".to_string());
+                    base_im::async_send_text("critical error occurred".to_string());
                 }
             }
 
@@ -213,6 +253,52 @@ impl Lark {
         self.update_time = Utc::now().timestamp();
 
         Ok(self.access_token.clone())
+    }
+
+    async fn upload_file(&mut self, file: File) -> anyhow::Result<String> {
+        let File { r#type, name, path } = file;
+        let upload_type = validate_upload_file_type(&r#type);
+        let file_size = tokio::fs::metadata(&path)
+            .await
+            .with_context(|| format!("read upload file metadata failed: {path}"))?
+            .len();
+        validate_upload_file_size(file_size)?;
+        let file_bytes = tokio::fs::read(&path)
+            .await
+            .with_context(|| format!("read upload file failed: {path}"))?;
+        let mime_type = util::http_utils::mime_type_for_upload(&r#type, &name);
+        let file_part = reqwest::multipart::Part::bytes(file_bytes)
+            .file_name(name.clone())
+            .mime_str(&mime_type)?;
+        let form = reqwest::multipart::Form::new()
+            .text("file_type", upload_type.clone())
+            .text("file_name", name.clone())
+            .part("file", file_part);
+        let request_summary = json!({
+            "file_type": upload_type,
+            "file_name": name,
+            "file_path": path,
+            "file_size": file_size,
+            "mime_type": mime_type,
+        });
+
+        let raw = util::http_utils::post_multipart(
+            FILE_UPLOAD_URL,
+            self.get_access_token().await?.as_str(),
+            form,
+            &request_summary,
+        )
+        .await?;
+        let resp: UploadFileResp = serde_json::from_str(&raw)
+            .with_context(|| format!("parse upload file response failed: {raw}"))?;
+
+        if resp.code != 0 {
+            anyhow::bail!("upload file failed: code={}, msg={}", resp.code, resp.msg);
+        }
+
+        resp.data
+            .map(|data| data.file_key)
+            .ok_or_else(|| anyhow::anyhow!("upload file response missing data.file_key"))
     }
 }
 
@@ -292,6 +378,35 @@ impl Im for Lark {
         .await?;
 
         info!("Reply emoji response: {}", raw);
+        Ok(())
+    }
+
+    async fn send_file(&mut self, file: File) -> anyhow::Result<()> {
+        let file_key = self.upload_file(file).await?;
+
+        // build content
+        let message_content = json!({
+            "file_key": file_key,
+        });
+
+        // build message req
+        let message_request = json!({
+            "receive_id": LARK_USER_OPEN_ID.clone(),
+            "content": message_content.to_string(),
+            "msg_type": "file"
+        });
+
+        info!("Sending file request: {:?}", message_request);
+
+        // send
+        let raw = util::http_utils::post(
+            SEND_URL,
+            self.get_access_token().await?.as_str(),
+            &message_request,
+        )
+        .await?;
+
+        info!("Sent file response: {}", raw);
         Ok(())
     }
 }

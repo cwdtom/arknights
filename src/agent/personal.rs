@@ -1,7 +1,7 @@
 use crate::kv::kv_service;
+use crate::llm;
 use crate::llm::Message;
 use crate::llm::Role;
-use crate::{im, llm};
 use anyhow::anyhow;
 use serde::Deserialize;
 
@@ -19,7 +19,7 @@ Task: rewrite the input text in a specified character’s style while strictly p
 - Keep the original language; you may polish the tone and reorder expressions, but factual content must remain unchanged.
 - Output length should be between 0.7 and 1.3 times the length of the original text.
 - The tone should be more natural and human‑like: state the conclusion first, then add key details.
-- If you decide to split the output into multiple messages, separate each part with a blank line.
+- Preserve the original markdown block structure whenever possible.
 
 **Subtask handling**
 - Output only the text body of the completed subtask, without adding any explanation, prefix/suffix, or extra wrapping.
@@ -28,8 +28,8 @@ Task: rewrite the input text in a specified character’s style while strictly p
 ## Output Format Json
 {
     "contents": [
-        "first phrase",
-        "second phrase"
+        "first message",
+        "second message"
     ]
 }
 "#;
@@ -39,7 +39,7 @@ struct PersonalResp {
     contents: Vec<String>,
 }
 
-pub async fn send_personal_message(message: String) -> anyhow::Result<String> {
+pub async fn personal_message(text: String) -> anyhow::Result<Vec<String>> {
     // set system prompt
     let system = Message::new(Role::System, PERSONAL_PROMPT.to_string());
     let mut messages = vec![system];
@@ -56,7 +56,7 @@ pub async fn send_personal_message(message: String) -> anyhow::Result<String> {
                 ## The following is the content that needs to be rewritten
                 {}
             "#,
-            role, message
+            role, text
         ),
     );
     messages.push(user);
@@ -68,12 +68,7 @@ pub async fn send_personal_message(message: String) -> anyhow::Result<String> {
         Some(choice) => {
             let personal_resp: PersonalResp = serde_json::from_str(&choice.message.content)?;
 
-            // send personal answers
-            for content in &personal_resp.contents {
-                im::base_im::async_send(content.clone());
-            }
-
-            Ok(personal_resp.contents.join("\n"))
+            Ok(personal_resp.contents)
         }
         None => Err(anyhow!("personal response is empty")),
     }

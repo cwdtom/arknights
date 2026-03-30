@@ -172,4 +172,8 @@ impl Im for FakeIm {
     async fn reply_emoji(&mut self, _message_id: String, _emoji: String) -> anyhow::Result<()> {
         Ok(())
     }
+
+    async fn send_file(&mut self, _file: crate::agent::plan::File) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
