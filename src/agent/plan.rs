@@ -22,10 +22,10 @@ Second, select appropriate tools and put them into `tools`.
 Then, given the expanded question and any previous execution results, produce a structured plan that guides downstream ReAct nodes to find the answer.
 
 ## Available Tools
-- system: System-related info or operations
-- internet: Internet-related operations
-- memory: Memory-related search
-- timer: Timer-related(curd timer task, used to invoke the agent.) operations
+- system: System-related(`date`, `bash`) info or operations
+- internet: Internet-related(`web_search`, `curl`) operations
+- memory: Memory-related(`search`, `list`, `profile`) search
+- timer: Timer-related(CURD timer task, used to invoke the agent) operations
 
 ## Decision Rules
 1. If the question has NOT been fully answered yet:

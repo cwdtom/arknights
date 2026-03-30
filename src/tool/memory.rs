@@ -129,7 +129,7 @@ impl ListTool {
             group_name: GROUP_NAME.to_string(),
             group_description: GROUP_DESC.to_string(),
             name: GROUP_NAME.to_string() + "_list_tool",
-            description: "Get recent chat histories.".to_string(),
+            description: "Get recent(less than 1 day or recent 20 lines) chat histories.".to_string(),
         };
 
         ListTool { base_tool }

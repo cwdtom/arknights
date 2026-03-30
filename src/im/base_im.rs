@@ -28,6 +28,10 @@ pub fn init_lark() {
 
 pub fn async_send(content: String) {
     tokio::spawn(async move {
+        if content.is_empty() {
+            return;
+        }
+
         let mut im = IM.get().expect("IM not initialized").lock().await;
         if let Err(e) = im.send(content).await {
             error!("Send failed: {:?}", e);

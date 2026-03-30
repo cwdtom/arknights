@@ -1,9 +1,11 @@
-/target
-/logs
-/docs
-.worktrees/
+target
+logs
 *.db
 models
+.cache
+
+# git
+.worktrees
 
 # env
 .env
@@ -15,6 +17,7 @@ CLAUDE.md
 # codex
 .codex
 AGENTS.md
+docs
 
 # ide
 .idea

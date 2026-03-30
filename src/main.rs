@@ -18,7 +18,7 @@ pub mod util;
 
 #[tokio::main]
 async fn main() {
-    dotenvy::dotenv().ok();
+    dotenvy::dotenv_override().expect("load .env failed");
 
     let file_appender = tracing_appender::rolling::daily("logs", "arknights.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
@@ -42,6 +42,13 @@ async fn main() {
     // timer init
     timer::timer_service::init_timer();
 
-    // lark wss
-    im::lark::build_wss().await.expect("building wss error");
+    // lark wss build and auto reconnect
+    loop {
+        match im::lark::build_wss().await {
+            Ok(_) => tracing::warn!("lark websocket exited without error, reconnecting."),
+            Err(err) => tracing::error!("lark websocket failed: {:?}, reconnecting.", err),
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    }
 }
