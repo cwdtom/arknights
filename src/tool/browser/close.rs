@@ -52,12 +52,15 @@ mod tests {
     use crate::tool::base_tool::LlmTool;
     use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
     use crate::tool::browser::error::{BrowserToolResult, BrowserToolUnitResult};
-    use crate::tool::browser::session::{BrowserDriverFactory, run_with_browser_scope};
+    use crate::tool::browser::session::{
+        BrowserDriverFactory, run_with_browser_scope, with_browser_session,
+    };
     use serde_json::Value;
     use std::sync::{Arc, Mutex};
 
     #[derive(Default)]
     struct CloseFactory {
+        create_count: Arc<Mutex<usize>>,
         close_count: Arc<Mutex<usize>>,
     }
 
@@ -68,6 +71,8 @@ mod tests {
     #[async_trait::async_trait]
     impl BrowserDriverFactory for CloseFactory {
         async fn create(&self) -> anyhow::Result<Box<dyn BrowserDriver>> {
+            let mut guard = self.create_count.lock().expect("lock poisoned");
+            *guard += 1;
             Ok(Box::new(CloseDriver {
                 close_count: self.close_count.clone(),
             }))
@@ -149,7 +154,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn close_calls_driver_and_wraps_unit_result() {
+    async fn close_returns_session_not_found_when_no_session_exists() {
         let factory = Arc::new(CloseFactory::default());
         let tool = CloseTool::new();
 
@@ -160,8 +165,31 @@ mod tests {
         .unwrap();
 
         let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["ok"], false);
+        assert_eq!(value["error"]["code"], "session_not_found");
+        assert_eq!(value["error"]["message"], "browser session not found");
+        assert_eq!(*factory.create_count.lock().expect("lock poisoned"), 0);
+        assert_eq!(*factory.close_count.lock().expect("lock poisoned"), 0);
+    }
+
+    #[tokio::test]
+    async fn close_closes_existing_session_and_wraps_unit_result() {
+        let factory = Arc::new(CloseFactory::default());
+        let tool = CloseTool::new();
+
+        let raw = run_with_browser_scope(factory.clone(), async {
+            with_browser_session(|_| async { Ok::<_, anyhow::Error>(()) })
+                .await
+                .unwrap();
+            Ok::<_, anyhow::Error>(tool.deep_seek_call(&close_call("{}")).await)
+        })
+        .await
+        .unwrap();
+
+        let value: Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(value["ok"], true);
         assert_eq!(value["result"], serde_json::json!({}));
+        assert_eq!(*factory.create_count.lock().expect("lock poisoned"), 1);
         assert_eq!(*factory.close_count.lock().expect("lock poisoned"), 1);
     }
 }
