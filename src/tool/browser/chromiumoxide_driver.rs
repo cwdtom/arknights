@@ -1,5 +1,5 @@
 use crate::tool::browser::chromiumoxide_runtime::{self, ChromiumoxideRuntime};
-use crate::tool::browser::driver::{BrowserDriver, ScrollDirection, ScrollRequest};
+use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
 use crate::tool::browser::error::{BrowserToolError, BrowserToolResult, BrowserToolUnitResult};
 use crate::tool::browser::snapshot_js::SNAPSHOT_JS;
 use anyhow::anyhow;
@@ -154,21 +154,6 @@ impl BrowserDriver for ChromiumoxideBrowserDriver {
 
     async fn scroll(&mut self, request: ScrollRequest) -> BrowserToolResult {
         match request {
-            ScrollRequest::Direction { direction, pages } => {
-                let delta = match direction {
-                    ScrollDirection::Up => -1_i64,
-                    ScrollDirection::Down => 1_i64,
-                } * i64::from(pages);
-                self.page
-                    .evaluate_function(format!(
-                        "() => {{ window.scrollBy(0, window.innerHeight * {delta}); return true; }}"
-                    ))
-                    .await
-                    .map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))?;
-                Ok(
-                    json!({ "direction": if matches!(direction, ScrollDirection::Up) { "up" } else { "down" }, "pages": pages, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))? }),
-                )
-            }
             ScrollRequest::Element { element_id } => {
                 chromiumoxide_runtime::find_element(&self.page, &element_id, "scroll_failed")
                     .await?
@@ -179,6 +164,17 @@ impl BrowserDriver for ChromiumoxideBrowserDriver {
                     json!({ "element_id": element_id, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))? }),
                 )
             }
+            ScrollRequest::DeltaY { delta_y } => {
+                self.page
+                    .evaluate_function(format!(
+                        "() => {{ window.scrollBy(0, {delta_y}); return true; }}"
+                    ))
+                    .await
+                    .map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))?;
+                Ok(
+                    json!({ "delta_y": delta_y, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))? }),
+                )
+            }
         }
     }
 
@@ -186,43 +182,15 @@ impl BrowserDriver for ChromiumoxideBrowserDriver {
         self.wait_for_text(text, timeout_ms).await
     }
 
-    async fn get_text(&mut self, element_id: Option<&str>) -> BrowserToolResult {
-        let text = match element_id {
-            Some(id) => chromiumoxide_runtime::find_element(&self.page, id, "get_text_failed")
-                .await?
-                .inner_text()
-                .await
-                .map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))?
-                .unwrap_or_default(),
-            None => self
-                .page
-                .evaluate("document.body ? document.body.innerText : ''")
-                .await
-                .map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))?
-                .into_value::<String>()
-                .map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))?,
-        };
+    async fn get_text(&mut self, element_id: &str) -> BrowserToolResult {
+        let text = chromiumoxide_runtime::find_element(&self.page, element_id, "get_text_failed")
+            .await?
+            .inner_text()
+            .await
+            .map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))?
+            .unwrap_or_default();
         Ok(
             json!({ "element_id": element_id, "text": text, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))? }),
-        )
-    }
-
-    async fn get_html(&mut self, element_id: Option<&str>) -> BrowserToolResult {
-        let html = match element_id {
-            Some(id) => chromiumoxide_runtime::find_element(&self.page, id, "get_html_failed")
-                .await?
-                .outer_html()
-                .await
-                .map_err(|err| chromiumoxide_runtime::op_error("get_html_failed", err))?
-                .unwrap_or_default(),
-            None => self
-                .page
-                .content()
-                .await
-                .map_err(|err| chromiumoxide_runtime::op_error("get_html_failed", err))?,
-        };
-        Ok(
-            json!({ "element_id": element_id, "html": html, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("get_html_failed", err))? }),
         )
     }
 

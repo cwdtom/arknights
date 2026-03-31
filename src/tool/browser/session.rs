@@ -1,5 +1,4 @@
 use crate::tool::browser::driver::BrowserDriver;
-use crate::tool::browser::error::{BrowserToolError, BrowserToolUnitResult};
 use anyhow::anyhow;
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
@@ -140,25 +139,6 @@ where
     operation(session).await
 }
 
-pub async fn close_browser_session() -> anyhow::Result<BrowserToolUnitResult> {
-    let scope = current_scope()?;
-    let session = {
-        let mut guard = scope.session.lock().await;
-        guard.take()
-    };
-
-    match session {
-        Some(session) => {
-            let mut driver = session.lock_driver().await;
-            Ok(driver.close().await)
-        }
-        None => Ok(Err(BrowserToolError::new(
-            "session_not_found",
-            "browser session not found",
-        ))),
-    }
-}
-
 fn current_scope() -> anyhow::Result<Arc<BrowserScope>> {
     BROWSER_SCOPE
         .try_with(|scope| scope.clone())
@@ -226,11 +206,7 @@ mod tests {
             Ok(serde_json::json!({}))
         }
 
-        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            Ok(serde_json::json!({}))
-        }
-
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+        async fn get_text(&mut self, _element_id: &str) -> BrowserToolResult {
             Ok(serde_json::json!({}))
         }
 
@@ -295,11 +271,7 @@ mod tests {
             Ok(serde_json::json!({}))
         }
 
-        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            Ok(serde_json::json!({}))
-        }
-
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+        async fn get_text(&mut self, _element_id: &str) -> BrowserToolResult {
             Ok(serde_json::json!({}))
         }
 

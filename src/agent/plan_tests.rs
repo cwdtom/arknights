@@ -58,6 +58,8 @@ fn build_system_prompt_includes_user_profile_section() {
 #[test]
 fn plan_prompt_mentions_browser_tool_group() {
     assert!(PLAN_PROMPT.contains("browser"));
+    assert!(!PLAN_PROMPT.contains("get_html"));
+    assert!(!PLAN_PROMPT.contains("close"));
 }
 
 #[test]

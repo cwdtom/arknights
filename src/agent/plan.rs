@@ -31,7 +31,7 @@ Then, given the expanded question and any previous execution results, produce a 
 - schedule: Persistent user schedule/calendar event operations.
   Use it for schedule, calendar, meeting, itinerary, and event queries.
   This group is the source of truth for saved schedule-event records.
-- browser: Browser-related(`navigate`, `snapshot`, `click`, `fill`, `scroll`, `wait_text`, `get_text`, `get_html`, `screenshot`, `close`) operations
+- browser: Browser-related(`navigate`, `snapshot`, `click`, `fill`, `scroll`, `wait_text`, `get_text`, `screenshot`) operations
 
 ## Decision Rules
 1. If the question has NOT been fully answered yet:
@@ -49,6 +49,7 @@ Then, given the expanded question and any previous execution results, produce a 
 6. If the user asks about schedule/calendar/event records, you MUST include `schedule`.
 7. For relative-date schedule queries such as "What is on my schedule today?" or "What is on my schedule tomorrow?", you MUST include both `system` and `schedule`.
 8. Do not route schedule/calendar/event-record queries to `memory` unless the user explicitly asks about past conversations or remembered preferences.
+9. If the message contains a URL, be sure to include that URL in every subtask.
 
 ## Language Rule
 `content.text`, `expand_goal` and every `plan` field must be written in the same language as the user's message.

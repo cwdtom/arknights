@@ -1,7 +1,7 @@
 use crate::llm::base_llm::{Function, Parameters, ToolCall};
 use crate::tool::base_tool::BaseTool;
 use crate::tool::browser::error::{
-    BrowserToolResult, browser_error_json, browser_tool_result_json, browser_tool_unit_result_json,
+    BrowserToolResult, browser_error_json, browser_tool_result_json,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -18,11 +18,9 @@ mod chromiumoxide_driver;
 mod chromiumoxide_driver_tests;
 mod chromiumoxide_runtime;
 mod click;
-mod close;
 pub(crate) mod driver;
 pub(crate) mod error;
 mod fill;
-mod get_html;
 mod get_text;
 mod navigate;
 mod screenshot;
@@ -33,9 +31,7 @@ mod snapshot_js;
 mod wait_text;
 
 pub use click::ClickTool;
-pub use close::CloseTool;
 pub use fill::FillTool;
-pub use get_html::GetHtmlTool;
 pub use get_text::GetTextTool;
 pub use navigate::NavigateTool;
 pub use screenshot::ScreenshotTool;
@@ -92,13 +88,6 @@ where
 {
     match session::with_browser_session(operation).await {
         Ok(result) => browser_tool_result_json(result),
-        Err(err) => browser_session_error(action, err),
-    }
-}
-
-pub(crate) async fn run_browser_close_result(action: &str) -> String {
-    match session::close_browser_session().await {
-        Ok(result) => browser_tool_unit_result_json(result),
         Err(err) => browser_session_error(action, err),
     }
 }

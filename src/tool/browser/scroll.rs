@@ -1,6 +1,6 @@
 use crate::llm::base_llm::ToolCall;
 use crate::tool::base_tool::{BaseTool, LlmTool};
-use crate::tool::browser::driver::{ScrollDirection, ScrollRequest};
+use crate::tool::browser::driver::ScrollRequest;
 use crate::tool::browser::{
     browser_schema, invalid_arguments, new_base_tool, parse_tool_args, run_browser_result,
 };
@@ -11,14 +11,11 @@ pub struct ScrollTool {
     pub base_tool: BaseTool,
 }
 
-const DEFAULT_SCROLL_PAGES: u32 = 1;
-
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ScrollArgs {
-    direction: Option<String>,
-    pages: Option<u32>,
     element_id: Option<String>,
+    delta_y: Option<i64>,
 }
 
 #[async_trait::async_trait]
@@ -35,19 +32,13 @@ impl LlmTool for ScrollTool {
         browser_schema(
             &self.base_tool,
             json!({
-                "direction": {
-                    "type": "string",
-                    "description": "Scroll direction",
-                    "enum": ["up", "down"],
-                },
-                "pages": {
-                    "type": "integer",
-                    "description": "Number of pages to scroll",
-                    "minimum": 1,
-                },
                 "element_id": {
                     "type": "string",
-                    "description": "Element identifier to scroll within",
+                    "description": "Element identifier to scroll to. Preferred when both element_id and delta_y are provided.",
+                },
+                "delta_y": {
+                    "type": "integer",
+                    "description": "Signed vertical pixel offset. Positive scrolls down, negative scrolls up. Ignored when element_id is also provided.",
                 }
             }),
             &[],
@@ -75,31 +66,21 @@ impl LlmTool for ScrollTool {
 impl ScrollTool {
     pub fn new() -> Self {
         Self {
-            base_tool: new_base_tool("scroll", "Scroll by direction/pages or within element_id."),
+            base_tool: new_base_tool(
+                "scroll",
+                "Scroll to an element by element_id or move the page vertically by delta_y pixels. Prefer element_id when both are provided.",
+            ),
         }
     }
 }
 
 fn build_scroll_request(args: ScrollArgs) -> Result<ScrollRequest, String> {
-    if let Some(element_id) = args.element_id {
-        if args.direction.is_some() || args.pages.is_some() {
-            return Err("`element_id` cannot be combined with `direction` or `pages`".to_string());
-        }
-        return Ok(ScrollRequest::Element { element_id });
+    match (args.element_id, args.delta_y) {
+        (Some(element_id), None) => Ok(ScrollRequest::Element { element_id }),
+        (Some(element_id), Some(_delta_y)) => Ok(ScrollRequest::Element { element_id }),
+        (None, Some(delta_y)) => Ok(ScrollRequest::DeltaY { delta_y }),
+        (None, None) => Err("provide `element_id` or `delta_y`".to_string()),
     }
-
-    let direction = match args.direction.as_deref() {
-        Some("up") => ScrollDirection::Up,
-        Some("down") => ScrollDirection::Down,
-        Some(value) => return Err(format!("unsupported direction: {value}")),
-        None => return Err("provide `element_id` or `direction`".to_string()),
-    };
-    let pages = args.pages.unwrap_or(DEFAULT_SCROLL_PAGES);
-    if pages == 0 {
-        return Err("`pages` must be >= 1".to_string());
-    }
-
-    Ok(ScrollRequest::Direction { direction, pages })
 }
 
 #[cfg(test)]
@@ -107,7 +88,7 @@ mod tests {
     use super::*;
     use crate::llm::base_llm::{FunctionCall, ToolCall};
     use crate::tool::base_tool::LlmTool;
-    use crate::tool::browser::driver::{BrowserDriver, ScrollDirection, ScrollRequest};
+    use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
     use crate::tool::browser::error::{BrowserToolResult, BrowserToolUnitResult};
     use crate::tool::browser::session::{BrowserDriverFactory, run_with_browser_scope};
     use serde_json::Value;
@@ -152,16 +133,10 @@ mod tests {
         async fn scroll(&mut self, request: ScrollRequest) -> BrowserToolResult {
             *self.last_request.lock().expect("lock poisoned") = Some(request.clone());
             match request {
-                ScrollRequest::Direction { direction, pages } => {
-                    let direction = match direction {
-                        ScrollDirection::Up => "up",
-                        ScrollDirection::Down => "down",
-                    };
-                    Ok(serde_json::json!({ "direction": direction, "pages": pages }))
-                }
                 ScrollRequest::Element { element_id } => {
                     Ok(serde_json::json!({ "element_id": element_id }))
                 }
+                ScrollRequest::DeltaY { delta_y } => Ok(serde_json::json!({ "delta_y": delta_y })),
             }
         }
 
@@ -169,12 +144,8 @@ mod tests {
             panic!("unexpected wait_text call")
         }
 
-        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+        async fn get_text(&mut self, _element_id: &str) -> BrowserToolResult {
             panic!("unexpected get_text call")
-        }
-
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_html call")
         }
 
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
@@ -198,16 +169,26 @@ mod tests {
     }
 
     #[test]
-    fn scroll_schema_exposes_direction_pages_and_element() {
+    fn scroll_schema_exposes_element_id_delta_y_and_precedence_docs() {
         let tool = ScrollTool::new();
         let schema = tool.deep_seek_schema();
 
         assert_eq!(schema.name, "browser_scroll");
         assert!(schema.parameters.required.is_empty());
-        assert!(schema.parameters.properties["direction"]["enum"].is_array());
-        assert!(schema.parameters.properties["pages"].is_object());
-        assert_eq!(schema.parameters.properties["pages"]["minimum"], 1);
         assert!(schema.parameters.properties["element_id"].is_object());
+        assert!(schema.parameters.properties["delta_y"].is_object());
+        assert!(
+            schema.parameters.properties["element_id"]["description"]
+                .as_str()
+                .unwrap()
+                .contains("Preferred when both")
+        );
+        assert!(
+            schema.parameters.properties["delta_y"]["description"]
+                .as_str()
+                .unwrap()
+                .contains("Ignored when element_id is also provided")
+        );
     }
 
     #[tokio::test]
@@ -216,33 +197,6 @@ mod tests {
         let result = tool.deep_seek_call(&scroll_call("{")).await;
 
         assert!(result.starts_with("Error: invalid arguments:"));
-    }
-
-    #[tokio::test]
-    async fn scroll_direction_mode_calls_driver_with_direction_request() {
-        let factory = Arc::new(ScrollFactory::default());
-        let tool = ScrollTool::new();
-
-        let raw = run_with_browser_scope(factory.clone(), async {
-            Ok::<_, anyhow::Error>(
-                tool.deep_seek_call(&scroll_call(r#"{"direction":"down","pages":2}"#))
-                    .await,
-            )
-        })
-        .await
-        .unwrap();
-
-        let value: Value = serde_json::from_str(&raw).unwrap();
-        assert_eq!(value["ok"], true);
-        assert_eq!(value["result"]["direction"], "down");
-        assert_eq!(value["result"]["pages"], 2);
-        assert_eq!(
-            *factory.last_request.lock().expect("lock poisoned"),
-            Some(ScrollRequest::Direction {
-                direction: ScrollDirection::Down,
-                pages: 2,
-            })
-        );
     }
 
     #[tokio::test]
@@ -271,23 +225,84 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn scroll_rejects_missing_direction_and_element_id() {
+    async fn scroll_delta_y_mode_calls_driver() {
+        let factory = Arc::new(ScrollFactory::default());
+        let tool = ScrollTool::new();
+
+        let raw = run_with_browser_scope(factory.clone(), async {
+            Ok::<_, anyhow::Error>(
+                tool.deep_seek_call(&scroll_call(r#"{"delta_y":480}"#))
+                    .await,
+            )
+        })
+        .await
+        .unwrap();
+
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["ok"], true);
+        assert_eq!(value["result"]["delta_y"], 480);
+        assert_eq!(
+            *factory.last_request.lock().expect("lock poisoned"),
+            Some(ScrollRequest::DeltaY { delta_y: 480 })
+        );
+    }
+
+    #[tokio::test]
+    async fn scroll_negative_delta_y_mode_calls_driver() {
+        let factory = Arc::new(ScrollFactory::default());
+        let tool = ScrollTool::new();
+
+        let raw = run_with_browser_scope(factory.clone(), async {
+            Ok::<_, anyhow::Error>(
+                tool.deep_seek_call(&scroll_call(r#"{"delta_y":-480}"#))
+                    .await,
+            )
+        })
+        .await
+        .unwrap();
+
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["ok"], true);
+        assert_eq!(value["result"]["delta_y"], -480);
+        assert_eq!(
+            *factory.last_request.lock().expect("lock poisoned"),
+            Some(ScrollRequest::DeltaY { delta_y: -480 })
+        );
+    }
+
+    #[tokio::test]
+    async fn scroll_rejects_missing_element_id_and_delta_y() {
         let tool = ScrollTool::new();
         let result = tool.deep_seek_call(&scroll_call("{}")).await;
 
         assert_eq!(
             result,
-            "Error: invalid arguments: provide `element_id` or `direction`"
+            "Error: invalid arguments: provide `element_id` or `delta_y`"
         );
     }
 
     #[tokio::test]
-    async fn scroll_rejects_zero_pages() {
+    async fn scroll_prefers_element_id_when_both_element_id_and_delta_y_are_provided() {
+        let factory = Arc::new(ScrollFactory::default());
         let tool = ScrollTool::new();
-        let result = tool
-            .deep_seek_call(&scroll_call(r#"{"direction":"down","pages":0}"#))
-            .await;
 
-        assert_eq!(result, "Error: invalid arguments: `pages` must be >= 1");
+        let raw = run_with_browser_scope(factory.clone(), async {
+            Ok::<_, anyhow::Error>(
+                tool.deep_seek_call(&scroll_call(r#"{"element_id":"panel-1","delta_y":480}"#))
+                    .await,
+            )
+        })
+        .await
+        .unwrap();
+
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["ok"], true);
+        assert_eq!(value["result"]["element_id"], "panel-1");
+        assert_eq!(
+            *factory.last_request.lock().expect("lock poisoned"),
+            Some(ScrollRequest::Element {
+                element_id: "panel-1".to_string(),
+            })
+        );
     }
 }
