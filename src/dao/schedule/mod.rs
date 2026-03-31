@@ -32,17 +32,16 @@ impl ScheduleDao {
         Ok(Self { base })
     }
 
-    pub async fn create(&self, event: &NewScheduleEvent) -> anyhow::Result<()> {
+    pub async fn create(&self, event: &NewScheduleEvent) -> anyhow::Result<i64> {
         let event = event.clone();
         self.base
             .run_blocking(move |conn| create_with_conn(conn, &event))
             .await
     }
 
-    pub async fn get(&self, id: &str) -> anyhow::Result<Option<ScheduleEvent>> {
-        let id = id.to_owned();
+    pub async fn get(&self, id: i64) -> anyhow::Result<Option<ScheduleEvent>> {
         self.base
-            .run_blocking(move |conn| get_with_conn(conn, &id))
+            .run_blocking(move |conn| get_with_conn(conn, id))
             .await
     }
 
@@ -79,10 +78,9 @@ impl ScheduleDao {
             .await
     }
 
-    pub async fn remove(&self, id: &str) -> anyhow::Result<()> {
-        let id = id.to_owned();
+    pub async fn remove(&self, id: i64) -> anyhow::Result<()> {
         self.base
-            .run_blocking(move |conn| remove_with_conn(conn, &id))
+            .run_blocking(move |conn| remove_with_conn(conn, id))
             .await
     }
 

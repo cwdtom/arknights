@@ -12,7 +12,7 @@ pub struct Update {
 
 #[derive(Deserialize)]
 struct UpdateArgs {
-    id: String,
+    id: i64,
     content: String,
     tag: Option<String>,
     start_time: String,
@@ -34,7 +34,7 @@ impl LlmTool for Update {
             &self.base_tool,
             serde_json::json!({
                 "id": {
-                    "type": "string",
+                    "type": "integer",
                     "description": "schedule event id"
                 },
                 "content": {

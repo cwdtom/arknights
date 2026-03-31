@@ -4,7 +4,6 @@ use crate::dao::schedule_dao::{
 use anyhow::anyhow;
 use chrono::{DateTime, Local, SecondsFormat};
 use std::sync::LazyLock;
-use uuid::Uuid;
 
 static SCHEDULE_DAO: LazyLock<anyhow::Result<ScheduleDao>> = LazyLock::new(ScheduleDao::new);
 
@@ -18,7 +17,7 @@ pub struct CreateScheduleEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateScheduleEvent {
-    pub id: String,
+    pub id: i64,
     pub content: String,
     pub tag: Option<String>,
     pub start_time: String,
@@ -31,21 +30,19 @@ fn schedule_dao() -> anyhow::Result<&'static ScheduleDao> {
 
 pub async fn create(input: CreateScheduleEvent) -> anyhow::Result<ScheduleEvent> {
     let dao = schedule_dao()?;
-    let id = generate_id();
     let times = normalize_event_times(input.start_time, input.end_time)?;
     let event = NewScheduleEvent {
-        id: id.clone(),
         content: input.content,
         tag: input.tag,
         start_time: times.start_time,
         end_time: times.end_time,
     };
-    dao.create(&event).await?;
+    let id = dao.create(&event).await?;
     load_event(dao, &id).await
 }
 
-pub async fn get_by_id(id: String) -> anyhow::Result<Option<ScheduleEvent>> {
-    schedule_dao()?.get(&id).await
+pub async fn get_by_id(id: i64) -> anyhow::Result<Option<ScheduleEvent>> {
+    schedule_dao()?.get(id).await
 }
 
 pub async fn list_by_range(start: String, end: String) -> anyhow::Result<Vec<ScheduleEvent>> {
@@ -67,7 +64,7 @@ pub async fn update(input: UpdateScheduleEvent) -> anyhow::Result<ScheduleEvent>
     let dao = schedule_dao()?;
     let times = normalize_event_times(input.start_time, input.end_time)?;
     let event = DaoUpdateScheduleEvent {
-        id: input.id.clone(),
+        id: input.id,
         content: input.content,
         tag: input.tag,
         start_time: times.start_time,
@@ -77,18 +74,14 @@ pub async fn update(input: UpdateScheduleEvent) -> anyhow::Result<ScheduleEvent>
     load_event(dao, &input.id).await
 }
 
-pub async fn remove(id: String) -> anyhow::Result<()> {
-    schedule_dao()?.remove(&id).await
+pub async fn remove(id: i64) -> anyhow::Result<()> {
+    schedule_dao()?.remove(id).await
 }
 
-async fn load_event(dao: &ScheduleDao, id: &str) -> anyhow::Result<ScheduleEvent> {
-    dao.get(id)
+async fn load_event(dao: &ScheduleDao, id: &i64) -> anyhow::Result<ScheduleEvent> {
+    dao.get(*id)
         .await?
         .ok_or_else(|| anyhow!("schedule event not found: {id}"))
-}
-
-fn generate_id() -> String {
-    Uuid::new_v4().to_string()
 }
 
 struct NormalizedScheduleTimes {
