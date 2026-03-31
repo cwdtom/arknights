@@ -15,6 +15,7 @@ const SESSION_ERROR_CODE: &str = "browser_session_error";
 
 mod click;
 mod close;
+mod chromiumoxide_driver;
 pub(crate) mod driver;
 pub(crate) mod error;
 mod fill;
@@ -25,7 +26,10 @@ mod screenshot;
 mod scroll;
 mod session;
 mod snapshot;
+mod snapshot_js;
 mod wait_text;
+#[cfg(test)]
+mod chromiumoxide_driver_tests;
 
 pub use click::ClickTool;
 pub use close::CloseTool;
@@ -38,7 +42,16 @@ pub use scroll::ScrollTool;
 pub use snapshot::SnapshotTool;
 pub use wait_text::WaitTextTool;
 
-pub(crate) use session::run_with_default_browser_scope;
+pub(crate) async fn run_with_default_browser_scope<F, T>(future: F) -> anyhow::Result<T>
+where
+    F: Future<Output = anyhow::Result<T>>,
+{
+    session::run_with_browser_scope(
+        Arc::new(chromiumoxide_driver::ChromiumoxideBrowserDriverFactory::new()),
+        future,
+    )
+    .await
+}
 
 pub(crate) fn new_base_tool(name_suffix: &str, description: &str) -> BaseTool {
     BaseTool {
