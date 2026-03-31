@@ -11,7 +11,7 @@ pub struct GetTextTool {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GetTextArgs {
-    element_id: String,
+    element_id: Option<String>,
 }
 
 #[async_trait::async_trait]
@@ -30,10 +30,10 @@ impl LlmTool for GetTextTool {
             json!({
                 "element_id": {
                     "type": "string",
-                    "description": "Element identifier",
+                    "description": "Optional target element",
                 }
             }),
-            &["element_id"],
+            &[],
         )
     }
 
@@ -45,7 +45,7 @@ impl LlmTool for GetTextTool {
 
         run_browser_result("get_text", |session| async move {
             let mut driver = session.lock_driver().await;
-            Ok(driver.get_text(&args.element_id).await)
+            Ok(driver.get_text(args.element_id.as_deref()).await)
         })
         .await
     }
@@ -54,7 +54,7 @@ impl LlmTool for GetTextTool {
 impl GetTextTool {
     pub fn new() -> Self {
         Self {
-            base_tool: new_base_tool("get_text", "Read visible text from an element."),
+            base_tool: new_base_tool("get_text", "Read visible text from page or element."),
         }
     }
 }
@@ -72,11 +72,11 @@ mod tests {
 
     #[derive(Default)]
     struct GetTextFactory {
-        last_element_id: Arc<Mutex<Option<String>>>,
+        last_element_id: Arc<Mutex<Option<Option<String>>>>,
     }
 
     struct GetTextDriver {
-        last_element_id: Arc<Mutex<Option<String>>>,
+        last_element_id: Arc<Mutex<Option<Option<String>>>>,
     }
 
     #[async_trait::async_trait]
@@ -114,9 +114,14 @@ mod tests {
             panic!("unexpected wait_text call")
         }
 
-        async fn get_text(&mut self, element_id: &str) -> BrowserToolResult {
-            *self.last_element_id.lock().expect("lock poisoned") = Some(element_id.to_string());
+        async fn get_text(&mut self, element_id: Option<&str>) -> BrowserToolResult {
+            *self.last_element_id.lock().expect("lock poisoned") =
+                Some(element_id.map(ToString::to_string));
             Ok(serde_json::json!({ "element_id": element_id, "text": "example" }))
+        }
+
+        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            panic!("unexpected get_html call")
         }
 
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
@@ -156,11 +161,15 @@ mod tests {
             panic!("unexpected wait_text call")
         }
 
-        async fn get_text(&mut self, _element_id: &str) -> BrowserToolResult {
+        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             Err(BrowserToolError::new(
                 "element_not_found",
                 "element does not exist",
             ))
+        }
+
+        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            panic!("unexpected get_html call")
         }
 
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
@@ -193,12 +202,12 @@ mod tests {
     }
 
     #[test]
-    fn get_text_schema_requires_element_id() {
+    fn get_text_schema_exposes_optional_element_id() {
         let tool = GetTextTool::new();
         let schema = tool.deep_seek_schema();
 
         assert_eq!(schema.name, "browser_get_text");
-        assert_eq!(schema.parameters.required, vec!["element_id".to_string()]);
+        assert!(schema.parameters.required.is_empty());
         assert_eq!(schema.parameters.properties["element_id"]["type"], "string");
     }
 
@@ -216,14 +225,6 @@ mod tests {
         let result = tool
             .deep_seek_call(&get_text_call(r#"{"element_id":"node-1","extra":"x"}"#))
             .await;
-
-        assert!(result.starts_with("Error: invalid arguments:"));
-    }
-
-    #[tokio::test]
-    async fn get_text_rejects_missing_element_id() {
-        let tool = GetTextTool::new();
-        let result = tool.deep_seek_call(&get_text_call("{}")).await;
 
         assert!(result.starts_with("Error: invalid arguments:"));
     }
@@ -248,7 +249,28 @@ mod tests {
         assert_eq!(value["result"]["text"], "example");
         assert_eq!(
             *factory.last_element_id.lock().expect("lock poisoned"),
-            Some("node-1".to_string())
+            Some(Some("node-1".to_string()))
+        );
+    }
+
+    #[tokio::test]
+    async fn get_text_calls_driver_without_element_id() {
+        let factory = Arc::new(GetTextFactory::default());
+        let tool = GetTextTool::new();
+
+        let raw = run_with_browser_scope(factory.clone(), async {
+            Ok::<_, anyhow::Error>(tool.deep_seek_call(&get_text_call("{}")).await)
+        })
+        .await
+        .unwrap();
+
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["ok"], true);
+        assert!(value["result"]["element_id"].is_null());
+        assert_eq!(value["result"]["text"], "example");
+        assert_eq!(
+            *factory.last_element_id.lock().expect("lock poisoned"),
+            Some(None)
         );
     }
 

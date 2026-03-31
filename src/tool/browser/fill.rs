@@ -121,7 +121,11 @@ mod tests {
             panic!("unexpected wait_text call")
         }
 
-        async fn get_text(&mut self, _element_id: &str) -> BrowserToolResult {
+        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            panic!("unexpected get_text call")
+        }
+
+        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             panic!("unexpected get_text call")
         }
 

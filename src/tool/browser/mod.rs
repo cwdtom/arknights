@@ -21,6 +21,7 @@ mod click;
 pub(crate) mod driver;
 pub(crate) mod error;
 mod fill;
+mod get_html;
 mod get_text;
 mod navigate;
 mod screenshot;
@@ -32,6 +33,7 @@ mod wait_text;
 
 pub use click::ClickTool;
 pub use fill::FillTool;
+pub use get_html::GetHtmlTool;
 pub use get_text::GetTextTool;
 pub use navigate::NavigateTool;
 pub use screenshot::ScreenshotTool;

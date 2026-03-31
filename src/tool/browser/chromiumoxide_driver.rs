@@ -182,15 +182,43 @@ impl BrowserDriver for ChromiumoxideBrowserDriver {
         self.wait_for_text(text, timeout_ms).await
     }
 
-    async fn get_text(&mut self, element_id: &str) -> BrowserToolResult {
-        let text = chromiumoxide_runtime::find_element(&self.page, element_id, "get_text_failed")
-            .await?
-            .inner_text()
-            .await
-            .map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))?
-            .unwrap_or_default();
+    async fn get_text(&mut self, element_id: Option<&str>) -> BrowserToolResult {
+        let text = match element_id {
+            Some(id) => chromiumoxide_runtime::find_element(&self.page, id, "get_text_failed")
+                .await?
+                .inner_text()
+                .await
+                .map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))?
+                .unwrap_or_default(),
+            None => self
+                .page
+                .evaluate("document.body ? document.body.innerText : ''")
+                .await
+                .map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))?
+                .into_value::<String>()
+                .map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))?,
+        };
         Ok(
             json!({ "element_id": element_id, "text": text, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("get_text_failed", err))? }),
+        )
+    }
+
+    async fn get_html(&mut self, element_id: Option<&str>) -> BrowserToolResult {
+        let html = match element_id {
+            Some(id) => chromiumoxide_runtime::find_element(&self.page, id, "get_html_failed")
+                .await?
+                .outer_html()
+                .await
+                .map_err(|err| chromiumoxide_runtime::op_error("get_html_failed", err))?
+                .unwrap_or_default(),
+            None => self
+                .page
+                .content()
+                .await
+                .map_err(|err| chromiumoxide_runtime::op_error("get_html_failed", err))?,
+        };
+        Ok(
+            json!({ "element_id": element_id, "html": html, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("get_html_failed", err))? }),
         )
     }
 

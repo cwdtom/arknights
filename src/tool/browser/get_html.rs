@@ -3,16 +3,19 @@ use crate::tool::base_tool::{BaseTool, LlmTool};
 use crate::tool::browser::{browser_schema, new_base_tool, parse_tool_args, run_browser_result};
 use serde::Deserialize;
 use serde_json::json;
-pub struct ScreenshotTool {
+
+pub struct GetHtmlTool {
     pub base_tool: BaseTool,
 }
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ScreenshotArgs {
+struct GetHtmlArgs {
     element_id: Option<String>,
 }
+
 #[async_trait::async_trait]
-impl LlmTool for ScreenshotTool {
+impl LlmTool for GetHtmlTool {
     fn group_name(&self) -> &str {
         &self.base_tool.group_name
     }
@@ -27,7 +30,7 @@ impl LlmTool for ScreenshotTool {
             json!({
                 "element_id": {
                     "type": "string",
-                    "description": "Optional element identifier",
+                    "description": "Optional target element",
                 }
             }),
             &[],
@@ -35,23 +38,23 @@ impl LlmTool for ScreenshotTool {
     }
 
     async fn deep_seek_call(&self, tool_call: &ToolCall) -> String {
-        let args: ScreenshotArgs = match parse_tool_args(tool_call, self.base_tool.name.as_str()) {
+        let args: GetHtmlArgs = match parse_tool_args(tool_call, self.base_tool.name.as_str()) {
             Ok(args) => args,
             Err(err) => return err,
         };
 
-        run_browser_result("screenshot", |session| async move {
+        run_browser_result("get_html", |session| async move {
             let mut driver = session.lock_driver().await;
-            Ok(driver.screenshot(args.element_id.as_deref()).await)
+            Ok(driver.get_html(args.element_id.as_deref()).await)
         })
         .await
     }
 }
 
-impl ScreenshotTool {
+impl GetHtmlTool {
     pub fn new() -> Self {
         Self {
-            base_tool: new_base_tool("screenshot", "Capture screenshot of page or element."),
+            base_tool: new_base_tool("get_html", "Read HTML from page or element."),
         }
     }
 }
@@ -68,25 +71,25 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     #[derive(Default)]
-    struct ScreenshotFactory {
+    struct GetHtmlFactory {
         last_element_id: Arc<Mutex<Option<Option<String>>>>,
     }
-    const SCREENSHOT_PATH: &str = "/tmp/ark-browser/shot-001.png";
-    struct ScreenshotDriver {
+
+    struct GetHtmlDriver {
         last_element_id: Arc<Mutex<Option<Option<String>>>>,
     }
 
     #[async_trait::async_trait]
-    impl BrowserDriverFactory for ScreenshotFactory {
+    impl BrowserDriverFactory for GetHtmlFactory {
         async fn create(&self) -> anyhow::Result<Box<dyn BrowserDriver>> {
-            Ok(Box::new(ScreenshotDriver {
+            Ok(Box::new(GetHtmlDriver {
                 last_element_id: self.last_element_id.clone(),
             }))
         }
     }
 
     #[async_trait::async_trait]
-    impl BrowserDriver for ScreenshotDriver {
+    impl BrowserDriver for GetHtmlDriver {
         async fn navigate(&mut self, _url: &str) -> BrowserToolResult {
             panic!("unexpected navigate call")
         }
@@ -115,19 +118,14 @@ mod tests {
             panic!("unexpected get_text call")
         }
 
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_text call")
-        }
-
-        async fn screenshot(&mut self, element_id: Option<&str>) -> BrowserToolResult {
+        async fn get_html(&mut self, element_id: Option<&str>) -> BrowserToolResult {
             *self.last_element_id.lock().expect("lock poisoned") =
                 Some(element_id.map(ToString::to_string));
-            Ok(serde_json::json!({
-                "path": SCREENSHOT_PATH,
-                "type": "image/png",
-                "title": "Example",
-                "element_id": element_id
-            }))
+            Ok(serde_json::json!({ "element_id": element_id, "html": "<div>ok</div>" }))
+        }
+
+        async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            panic!("unexpected screenshot call")
         }
 
         async fn close(&mut self) -> BrowserToolUnitResult {
@@ -168,14 +166,14 @@ mod tests {
         }
 
         async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_text call")
+            Err(BrowserToolError::new(
+                "html_unavailable",
+                "html is unavailable",
+            ))
         }
 
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            Err(BrowserToolError::new(
-                "screenshot_failed",
-                "failed to capture screenshot",
-            ))
+            panic!("unexpected screenshot call")
         }
 
         async fn close(&mut self) -> BrowserToolUnitResult {
@@ -192,62 +190,60 @@ mod tests {
         }
     }
 
-    fn screenshot_call(arguments: &str) -> ToolCall {
+    fn get_html_call(arguments: &str) -> ToolCall {
         ToolCall {
-            id: "call_screenshot".to_string(),
+            id: "call_get_html".to_string(),
             r#type: "function".to_string(),
             function: FunctionCall {
-                name: "browser_screenshot".to_string(),
+                name: "browser_get_html".to_string(),
                 arguments: arguments.to_string(),
             },
         }
     }
 
     #[test]
-    fn screenshot_schema_exposes_optional_element_id() {
-        let tool = ScreenshotTool::new();
+    fn get_html_schema_exposes_optional_element_id() {
+        let tool = GetHtmlTool::new();
         let schema = tool.deep_seek_schema();
 
-        assert_eq!(schema.name, "browser_screenshot");
+        assert_eq!(schema.name, "browser_get_html");
         assert!(schema.parameters.required.is_empty());
         assert_eq!(schema.parameters.properties["element_id"]["type"], "string");
     }
 
     #[tokio::test]
-    async fn screenshot_returns_invalid_arguments_for_bad_json() {
-        let tool = ScreenshotTool::new();
-        let result = tool.deep_seek_call(&screenshot_call("{")).await;
+    async fn get_html_returns_invalid_arguments_for_bad_json() {
+        let tool = GetHtmlTool::new();
+        let result = tool.deep_seek_call(&get_html_call("{")).await;
 
         assert!(result.starts_with("Error: invalid arguments:"));
     }
 
     #[tokio::test]
-    async fn screenshot_rejects_unknown_arguments() {
-        let tool = ScreenshotTool::new();
+    async fn get_html_rejects_unknown_arguments() {
+        let tool = GetHtmlTool::new();
         let result = tool
-            .deep_seek_call(&screenshot_call(r#"{"element_id":"node-1","extra":"x"}"#))
+            .deep_seek_call(&get_html_call(r#"{"element_id":"node-1","extra":"x"}"#))
             .await;
 
         assert!(result.starts_with("Error: invalid arguments:"));
     }
 
     #[tokio::test]
-    async fn screenshot_tool_returns_absolute_file_path() {
-        let factory = Arc::new(ScreenshotFactory::default());
-        let tool = ScreenshotTool::new();
+    async fn get_html_calls_driver_without_element_id() {
+        let factory = Arc::new(GetHtmlFactory::default());
+        let tool = GetHtmlTool::new();
 
         let raw = run_with_browser_scope(factory.clone(), async {
-            Ok::<_, anyhow::Error>(tool.deep_seek_call(&screenshot_call("{}")).await)
+            Ok::<_, anyhow::Error>(tool.deep_seek_call(&get_html_call("{}")).await)
         })
         .await
         .unwrap();
 
         let value: Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(value["ok"], true);
-        assert_eq!(value["result"]["path"], SCREENSHOT_PATH);
-        assert_eq!(value["result"]["type"], "image/png");
-        assert_eq!(value["result"]["title"], "Example");
         assert!(value["result"]["element_id"].is_null());
+        assert_eq!(value["result"]["html"], "<div>ok</div>");
         assert_eq!(
             *factory.last_element_id.lock().expect("lock poisoned"),
             Some(None)
@@ -255,13 +251,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn screenshot_calls_driver_with_element_id() {
-        let factory = Arc::new(ScreenshotFactory::default());
-        let tool = ScreenshotTool::new();
+    async fn get_html_calls_driver_with_element_id() {
+        let factory = Arc::new(GetHtmlFactory::default());
+        let tool = GetHtmlTool::new();
 
         let raw = run_with_browser_scope(factory.clone(), async {
             Ok::<_, anyhow::Error>(
-                tool.deep_seek_call(&screenshot_call(r#"{"element_id":"node-1"}"#))
+                tool.deep_seek_call(&get_html_call(r#"{"element_id":"node-1"}"#))
                     .await,
             )
         })
@@ -270,10 +266,8 @@ mod tests {
 
         let value: Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(value["ok"], true);
-        assert_eq!(value["result"]["path"], SCREENSHOT_PATH);
-        assert_eq!(value["result"]["type"], "image/png");
-        assert_eq!(value["result"]["title"], "Example");
         assert_eq!(value["result"]["element_id"], "node-1");
+        assert_eq!(value["result"]["html"], "<div>ok</div>");
         assert_eq!(
             *factory.last_element_id.lock().expect("lock poisoned"),
             Some(Some("node-1".to_string()))
@@ -281,16 +275,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn screenshot_wraps_driver_error_as_browser_error_json() {
-        let tool = ScreenshotTool::new();
+    async fn get_html_wraps_driver_error_as_browser_error_json() {
+        let tool = GetHtmlTool::new();
         let raw = run_with_browser_scope(Arc::new(ErrorFactory), async {
-            Ok::<_, anyhow::Error>(tool.deep_seek_call(&screenshot_call("{}")).await)
+            Ok::<_, anyhow::Error>(
+                tool.deep_seek_call(&get_html_call(r#"{"element_id":"missing"}"#))
+                    .await,
+            )
         })
         .await
         .unwrap();
 
         let value: Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(value["ok"], false);
-        assert_eq!(value["error"]["code"], "screenshot_failed");
+        assert_eq!(value["error"]["code"], "html_unavailable");
     }
 }

@@ -14,7 +14,8 @@ pub trait BrowserDriver: Send {
     async fn fill(&mut self, element_id: &str, value: &str) -> BrowserToolResult;
     async fn scroll(&mut self, request: ScrollRequest) -> BrowserToolResult;
     async fn wait_text(&mut self, text: &str, timeout_ms: Option<u64>) -> BrowserToolResult;
-    async fn get_text(&mut self, element_id: &str) -> BrowserToolResult;
+    async fn get_text(&mut self, element_id: Option<&str>) -> BrowserToolResult;
+    async fn get_html(&mut self, element_id: Option<&str>) -> BrowserToolResult;
     async fn screenshot(&mut self, element_id: Option<&str>) -> BrowserToolResult;
     async fn close(&mut self) -> BrowserToolUnitResult;
 }
@@ -55,7 +56,11 @@ mod tests {
             Ok(serde_json::json!({}))
         }
 
-        async fn get_text(&mut self, _element_id: &str) -> BrowserToolResult {
+        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             Ok(serde_json::json!({}))
         }
 

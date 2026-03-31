@@ -31,7 +31,7 @@ Then, given the expanded question and any previous execution results, produce a 
 - schedule: Persistent user schedule/calendar event operations.
   Use it for schedule, calendar, meeting, itinerary, and event queries.
   This group is the source of truth for saved schedule-event records.
-- browser: Browser-related(`navigate`, `snapshot`, `click`, `fill`, `scroll`, `wait_text`, `get_text`, `screenshot`) operations
+- browser: Browser-related(`navigate`, `snapshot`, `click`, `fill`, `scroll`, `wait_text`, `get_text`, `get_html`, `screenshot`) operations
 
 ## Decision Rules
 1. If the question has NOT been fully answered yet:

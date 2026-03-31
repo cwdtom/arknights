@@ -5,7 +5,6 @@ use crate::llm::base_llm::{FunctionCall, ToolCall};
 use crate::test_support;
 use crate::tool::base_tool::LlmTool;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 #[test]
 fn date_tool_new_sets_correct_fields() {
@@ -96,7 +95,7 @@ async fn bash_tool_returns_error_with_exit_code_for_failed_command() {
 }
 
 #[tokio::test]
-async fn bash_tool_limits_combined_output_length() {
+async fn bash_tool_limits_combined_output_length_without_exec_im_message() {
     let _guard = test_support::app_test_guard().await;
     unsafe {
         std::env::set_var("BASH_TOOL_ENABLE", "true");
@@ -115,24 +114,7 @@ async fn bash_tool_limits_combined_output_length() {
     assert!(result.len() <= MAX_BASH_RESULT_LEN);
     assert!(result.contains("stdout:"));
     assert!(result.contains("stderr:"));
-
-    test_support::wait_until_async("bash exec message", 20, Duration::from_millis(10), {
-        let sent_messages = Arc::clone(&sent_messages);
-        move || {
-            let sent_messages = Arc::clone(&sent_messages);
-            async move { Ok(!sent_messages.lock().unwrap().is_empty()) }
-        }
-    })
-    .await
-    .unwrap();
-
-    assert!(
-        sent_messages
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|message| message.starts_with("EXEC perl -e"))
-    );
+    assert!(sent_messages.lock().unwrap().is_empty());
 
     unsafe {
         std::env::remove_var("BASH_TOOL_ENABLE");

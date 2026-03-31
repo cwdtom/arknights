@@ -2,10 +2,10 @@ use std::fmt;
 use tracing::field::{Field, Visit};
 use tracing::{Event, Level, Metadata};
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::Layer;
 use tracing_subscriber::fmt::time::LocalTime;
 use tracing_subscriber::layer::{Context, Filter, SubscriberExt};
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::Layer;
 
 pub mod agent;
 mod command;
@@ -13,10 +13,10 @@ pub mod dao;
 pub mod im;
 pub mod kv;
 pub mod llm;
-pub mod memory;
-pub mod schedule;
 #[cfg(test)]
 mod main_tests;
+pub mod memory;
+pub mod schedule;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod timer;

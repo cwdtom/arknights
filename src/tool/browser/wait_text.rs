@@ -123,7 +123,11 @@ mod tests {
             Ok(serde_json::json!({ "text": text, "timeout_ms": timeout_ms }))
         }
 
-        async fn get_text(&mut self, _element_id: &str) -> BrowserToolResult {
+        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            panic!("unexpected get_text call")
+        }
+
+        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             panic!("unexpected get_text call")
         }
 
@@ -167,7 +171,11 @@ mod tests {
             ))
         }
 
-        async fn get_text(&mut self, _element_id: &str) -> BrowserToolResult {
+        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            panic!("unexpected get_text call")
+        }
+
+        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             panic!("unexpected get_text call")
         }
 

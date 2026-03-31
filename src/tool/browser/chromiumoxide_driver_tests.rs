@@ -2,8 +2,8 @@ use super::chromiumoxide_runtime::{
     combine_cleanup_results, shutdown_handler_task, take_first_or_stale,
 };
 use super::{
-    ClickTool, FillTool, GetTextTool, NavigateTool, ScreenshotTool, ScrollTool, SnapshotTool,
-    WaitTextTool, run_with_default_browser_scope,
+    ClickTool, FillTool, GetHtmlTool, GetTextTool, NavigateTool, ScreenshotTool, ScrollTool,
+    SnapshotTool, WaitTextTool, run_with_default_browser_scope,
 };
 use crate::llm::base_llm::{FunctionCall, ToolCall};
 use crate::tool::base_tool::LlmTool;
@@ -104,8 +104,16 @@ async fn chromiumoxide_smoke_flow() {
         let scroll = parse(&ScrollTool::new(), json!({ "element_id": finish_id })).await;
         assert_eq!(scroll["ok"], true);
 
-        let text = parse(&GetTextTool::new(), json!({ "element_id": finish_id })).await;
-        assert_eq!(text["result"]["text"], "Finish");
+        let text = parse(&GetTextTool::new(), json!({})).await;
+        assert!(
+            text["result"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Hello, Codex")
+        );
+
+        let html = parse(&GetHtmlTool::new(), json!({ "element_id": finish_id })).await;
+        assert!(html["result"]["html"].as_str().unwrap().contains("Finish"));
 
         let shot = parse(&ScreenshotTool::new(), json!({})).await;
         let shot_path = PathBuf::from(shot["result"]["path"].as_str().unwrap());
