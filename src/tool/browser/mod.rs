@@ -1,6 +1,6 @@
 use crate::llm::base_llm::{Function, Parameters};
 use crate::tool::base_tool::BaseTool;
-use serde_json::json;
+use serde_json::Value;
 
 pub const GROUP_NAME: &str = "browser";
 pub const GROUP_DESC: &str = "Browser tools for real page interaction.";
@@ -36,14 +36,17 @@ pub(crate) fn new_base_tool(name_suffix: &str, description: &str) -> BaseTool {
     }
 }
 
-pub(crate) fn default_browser_schema(base_tool: &BaseTool) -> Function {
+pub(crate) fn browser_schema(base_tool: &BaseTool, params: Value, required: &[&str]) -> Function {
     Function {
         name: base_tool.name.clone(),
         description: base_tool.description.clone(),
-        parameters: Parameters::new(json!({}), vec![]),
+        parameters: Parameters::new(
+            params,
+            required.iter().map(|s| s.to_string()).collect(),
+        ),
     }
 }
 
 pub(crate) fn placeholder_response(base_tool: &BaseTool) -> String {
-    format!("{} is not implemented yet.", base_tool.name)
+    format!("Error: {} not implemented yet.", base_tool.name)
 }

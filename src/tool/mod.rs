@@ -201,9 +201,21 @@ mod tests {
         let tools = get_tool_by_group("browser");
         let names: Vec<_> = tools.iter().map(|t| t.deep_seek_schema().name).collect();
 
-        assert!(names.contains(&"browser_navigate".to_string()));
-        assert!(names.contains(&"browser_snapshot".to_string()));
-        assert!(names.contains(&"browser_screenshot".to_string()));
-        assert!(names.contains(&"browser_close".to_string()));
+        let expected: &[&str] = &[
+            "browser_navigate",
+            "browser_snapshot",
+            "browser_screenshot",
+            "browser_close",
+            "browser_click",
+            "browser_fill",
+            "browser_get_html",
+            "browser_get_text",
+            "browser_scroll",
+            "browser_wait_text",
+        ];
+
+        for name in expected {
+            assert!(names.contains(&name.to_string()), "missing {}", name);
+        }
     }
 }

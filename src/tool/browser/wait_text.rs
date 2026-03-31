@@ -1,6 +1,7 @@
 use crate::llm::base_llm::ToolCall;
 use crate::tool::base_tool::{BaseTool, LlmTool};
-use crate::tool::browser::{default_browser_schema, new_base_tool, placeholder_response};
+use crate::tool::browser::{browser_schema, new_base_tool, placeholder_response};
+use serde_json::json;
 
 pub struct WaitTextTool {
     pub base_tool: BaseTool,
@@ -17,7 +18,20 @@ impl LlmTool for WaitTextTool {
     }
 
     fn deep_seek_schema(&self) -> crate::llm::base_llm::Function {
-        default_browser_schema(&self.base_tool)
+        browser_schema(
+            &self.base_tool,
+            json!({
+                "text": {
+                    "type": "string",
+                    "description": "Text to wait for",
+                },
+                "timeout_ms": {
+                    "type": "integer",
+                    "description": "Timeout in milliseconds",
+                }
+            }),
+            &["text"],
+        )
     }
 
     async fn deep_seek_call(&self, _tool_call: &ToolCall) -> String {

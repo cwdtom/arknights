@@ -1,6 +1,7 @@
 use crate::llm::base_llm::ToolCall;
 use crate::tool::base_tool::{BaseTool, LlmTool};
-use crate::tool::browser::{default_browser_schema, new_base_tool, placeholder_response};
+use crate::tool::browser::{browser_schema, new_base_tool, placeholder_response};
+use serde_json::json;
 
 pub struct ClickTool {
     pub base_tool: BaseTool,
@@ -17,7 +18,16 @@ impl LlmTool for ClickTool {
     }
 
     fn deep_seek_schema(&self) -> crate::llm::base_llm::Function {
-        default_browser_schema(&self.base_tool)
+        browser_schema(
+            &self.base_tool,
+            json!({
+                "element_id": {
+                    "type": "string",
+                    "description": "Element identifier to click",
+                }
+            }),
+            &["element_id"],
+        )
     }
 
     async fn deep_seek_call(&self, _tool_call: &ToolCall) -> String {
