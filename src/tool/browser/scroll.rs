@@ -14,6 +14,7 @@ pub struct ScrollTool {
 const DEFAULT_SCROLL_PAGES: u32 = 1;
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ScrollArgs {
     direction: Option<String>,
     pages: Option<u32>,
@@ -42,6 +43,7 @@ impl LlmTool for ScrollTool {
                 "pages": {
                     "type": "integer",
                     "description": "Number of pages to scroll",
+                    "minimum": 1,
                 },
                 "element_id": {
                     "type": "string",
@@ -93,6 +95,9 @@ fn build_scroll_request(args: ScrollArgs) -> Result<ScrollRequest, String> {
         None => return Err("provide `element_id` or `direction`".to_string()),
     };
     let pages = args.pages.unwrap_or(DEFAULT_SCROLL_PAGES);
+    if pages == 0 {
+        return Err("`pages` must be >= 1".to_string());
+    }
 
     Ok(ScrollRequest::Direction { direction, pages })
 }
@@ -201,6 +206,7 @@ mod tests {
         assert!(schema.parameters.required.is_empty());
         assert!(schema.parameters.properties["direction"]["enum"].is_array());
         assert!(schema.parameters.properties["pages"].is_object());
+        assert_eq!(schema.parameters.properties["pages"]["minimum"], 1);
         assert!(schema.parameters.properties["element_id"].is_object());
     }
 
@@ -273,5 +279,15 @@ mod tests {
             result,
             "Error: invalid arguments: provide `element_id` or `direction`"
         );
+    }
+
+    #[tokio::test]
+    async fn scroll_rejects_zero_pages() {
+        let tool = ScrollTool::new();
+        let result = tool
+            .deep_seek_call(&scroll_call(r#"{"direction":"down","pages":0}"#))
+            .await;
+
+        assert_eq!(result, "Error: invalid arguments: `pages` must be >= 1");
     }
 }

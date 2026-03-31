@@ -11,6 +11,7 @@ pub struct CloseTool {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CloseArgs {}
 
 #[async_trait::async_trait]
@@ -149,6 +150,16 @@ mod tests {
     async fn close_returns_invalid_arguments_for_bad_json() {
         let tool = CloseTool::new();
         let result = tool.deep_seek_call(&close_call("{")).await;
+
+        assert!(result.starts_with("Error: invalid arguments:"));
+    }
+
+    #[tokio::test]
+    async fn close_rejects_unknown_arguments() {
+        let tool = CloseTool::new();
+        let result = tool
+            .deep_seek_call(&close_call(r#"{"unexpected":true}"#))
+            .await;
 
         assert!(result.starts_with("Error: invalid arguments:"));
     }

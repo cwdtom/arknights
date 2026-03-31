@@ -9,6 +9,7 @@ pub struct FillTool {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct FillArgs {
     element_id: String,
     value: String,
@@ -166,6 +167,18 @@ mod tests {
     async fn fill_returns_invalid_arguments_for_bad_json() {
         let tool = FillTool::new();
         let result = tool.deep_seek_call(&fill_call("{")).await;
+
+        assert!(result.starts_with("Error: invalid arguments:"));
+    }
+
+    #[tokio::test]
+    async fn fill_rejects_unknown_arguments() {
+        let tool = FillTool::new();
+        let result = tool
+            .deep_seek_call(&fill_call(
+                r#"{"element_id":"query","value":"arknights","extra":"x"}"#,
+            ))
+            .await;
 
         assert!(result.starts_with("Error: invalid arguments:"));
     }

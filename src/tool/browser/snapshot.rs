@@ -9,6 +9,7 @@ pub struct SnapshotTool {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SnapshotArgs {}
 
 #[async_trait::async_trait]
@@ -146,6 +147,16 @@ mod tests {
     async fn snapshot_returns_invalid_arguments_for_bad_json() {
         let tool = SnapshotTool::new();
         let result = tool.deep_seek_call(&snapshot_call("{")).await;
+
+        assert!(result.starts_with("Error: invalid arguments:"));
+    }
+
+    #[tokio::test]
+    async fn snapshot_rejects_unknown_arguments() {
+        let tool = SnapshotTool::new();
+        let result = tool
+            .deep_seek_call(&snapshot_call(r#"{"unexpected":true}"#))
+            .await;
 
         assert!(result.starts_with("Error: invalid arguments:"));
     }

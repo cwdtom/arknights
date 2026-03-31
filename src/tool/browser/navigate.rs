@@ -9,6 +9,7 @@ pub struct NavigateTool {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct NavigateArgs {
     url: String,
 }
@@ -213,6 +214,18 @@ mod tests {
     async fn navigate_returns_invalid_arguments_for_bad_json() {
         let tool = NavigateTool::new();
         let result = tool.deep_seek_call(&navigate_call("{")).await;
+
+        assert!(result.starts_with("Error: invalid arguments:"));
+    }
+
+    #[tokio::test]
+    async fn navigate_rejects_unknown_arguments() {
+        let tool = NavigateTool::new();
+        let result = tool
+            .deep_seek_call(&navigate_call(
+                r#"{"url":"https://example.com","extra":"x"}"#,
+            ))
+            .await;
 
         assert!(result.starts_with("Error: invalid arguments:"));
     }

@@ -9,6 +9,7 @@ pub struct ClickTool {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ClickArgs {
     element_id: String,
 }
@@ -156,6 +157,16 @@ mod tests {
     async fn click_returns_invalid_arguments_for_bad_json() {
         let tool = ClickTool::new();
         let result = tool.deep_seek_call(&click_call("{")).await;
+
+        assert!(result.starts_with("Error: invalid arguments:"));
+    }
+
+    #[tokio::test]
+    async fn click_rejects_unknown_arguments() {
+        let tool = ClickTool::new();
+        let result = tool
+            .deep_seek_call(&click_call(r#"{"element_id":"node-1","extra":"x"}"#))
+            .await;
 
         assert!(result.starts_with("Error: invalid arguments:"));
     }
