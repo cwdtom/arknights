@@ -36,7 +36,7 @@ impl ChromiumoxideBrowserDriver {
         let runtime = ChromiumoxideRuntime::new(browser, handler);
         let page = match runtime.new_page("about:blank").await {
             Ok(page) => page,
-            Err(err) => return Err(runtime.cleanup_launch_failure(err.into()).await),
+            Err(err) => return Err(runtime.cleanup_launch_failure(err).await),
         };
         Ok(Self {
             runtime: Some(runtime),

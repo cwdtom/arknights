@@ -26,6 +26,7 @@ Then, given the expanded question and any previous execution results, produce a 
 - internet: Internet-related(`web_search`, `curl`) operations
 - memory: Memory-related(`search`, `list`, `profile`) search
 - timer: Timer-related(CURD timer task, used to invoke the agent) operations
+- browser: Browser-related(`navigate`, `snapshot`, `click`, `fill`, `scroll`, `wait_text`, `get_text`, `get_html`, `screenshot`, `close`) operations
 
 ## Decision Rules
 1. If the question has NOT been fully answered yet:
@@ -147,7 +148,7 @@ impl Plan {
                         })
                     } else {
                         Err(anyhow!("llm response is empty"))
-                    }
+                    };
                 }
 
                 // send expand goal
@@ -208,7 +209,7 @@ impl Plan {
                         return match plan_resp.content {
                             Some(c) => send_final_answer(self.question.clone(), c).await,
                             None => Err(anyhow!("llm response is empty")),
-                        }
+                        };
                     } else {
                         // update plans
                         self.llm.push_message(choice.message.clone());
@@ -266,7 +267,7 @@ async fn send_final_answer(question: String, content: Content) -> anyhow::Result
             // send files
             im::base_im::async_send_files(content.files.clone());
             Ok(cs.join("\n"))
-        },
+        }
         Err(err) => {
             error!("Failed to personalize message: {}", err);
             im::base_im::async_send_text(content.text.clone());

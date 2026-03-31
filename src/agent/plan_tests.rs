@@ -55,6 +55,11 @@ fn build_system_prompt_includes_user_profile_section() {
     assert!(prompt.contains("prefers concise answers"));
 }
 
+#[test]
+fn plan_prompt_mentions_browser_tool_group() {
+    assert!(PLAN_PROMPT.contains("browser"));
+}
+
 #[tokio::test]
 async fn execute_persists_latest_expand_goal_after_replan() {
     let _guard = test_support::app_test_guard().await;

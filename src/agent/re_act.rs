@@ -191,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn think_prompt_contains_browser_session_guidance() {
+    fn think_prompt_mentions_browser_snapshot_rule() {
         assert!(THINK_PROMPT.contains("Browser tools are stateful"));
         assert!(THINK_PROMPT.contains("browser_snapshot"));
     }

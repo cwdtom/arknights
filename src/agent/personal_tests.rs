@@ -17,7 +17,7 @@ async fn personal_message_returns_error_when_personal_role_missing() {
     test_support::clear_personal_value().await.unwrap();
 
     let err = personal_message("需要改写的内容".to_string())
-    .await
-    .unwrap_err();
+        .await
+        .unwrap_err();
     assert!(err.to_string().contains("key not found"));
 }

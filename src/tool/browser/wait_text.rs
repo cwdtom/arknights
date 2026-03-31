@@ -70,20 +70,21 @@ mod tests {
     use crate::llm::base_llm::{FunctionCall, ToolCall};
     use crate::tool::base_tool::LlmTool;
     use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
-    use crate::tool::browser::error::{
-        BrowserToolError, BrowserToolResult, BrowserToolUnitResult,
-    };
+    use crate::tool::browser::error::{BrowserToolError, BrowserToolResult, BrowserToolUnitResult};
     use crate::tool::browser::session::{BrowserDriverFactory, run_with_browser_scope};
     use serde_json::Value;
     use std::sync::{Arc, Mutex};
 
+    type WaitTextCall = (String, Option<u64>);
+    type WaitTextCallLog = Arc<Mutex<Option<WaitTextCall>>>;
+
     #[derive(Default)]
     struct WaitTextFactory {
-        last_call: Arc<Mutex<Option<(String, Option<u64>)>>>,
+        last_call: WaitTextCallLog,
     }
 
     struct WaitTextDriver {
-        last_call: Arc<Mutex<Option<(String, Option<u64>)>>>,
+        last_call: WaitTextCallLog,
     }
 
     #[async_trait::async_trait]
@@ -215,7 +216,10 @@ mod tests {
         assert_eq!(schema.name, "browser_wait_text");
         assert_eq!(schema.parameters.required, vec!["text".to_string()]);
         assert_eq!(schema.parameters.properties["text"]["type"], "string");
-        assert_eq!(schema.parameters.properties["timeout_ms"]["type"], "integer");
+        assert_eq!(
+            schema.parameters.properties["timeout_ms"]["type"],
+            "integer"
+        );
     }
 
     #[tokio::test]
