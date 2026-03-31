@@ -1,4 +1,5 @@
 pub(crate) mod base_tool;
+mod browser;
 mod internet;
 mod memory;
 mod process_control;
@@ -28,6 +29,16 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         let timer_insert = timer::Insert::new();
         let timer_update = timer::Update::new();
         let timer_remove = timer::Remove::new();
+        let browser_navigate = browser::NavigateTool::new();
+        let browser_snapshot = browser::SnapshotTool::new();
+        let browser_screenshot = browser::ScreenshotTool::new();
+        let browser_close = browser::CloseTool::new();
+        let browser_click = browser::ClickTool::new();
+        let browser_fill = browser::FillTool::new();
+        let browser_get_html = browser::GetHtmlTool::new();
+        let browser_get_text = browser::GetTextTool::new();
+        let browser_scroll = browser::ScrollTool::new();
+        let browser_wait_text = browser::WaitTextTool::new();
 
         let mut map: HashMap<String, Box<dyn LlmTool + Send + Sync>> = HashMap::new();
         map.insert(date.base_tool.name.clone(), Box::new(date));
@@ -58,6 +69,34 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         map.insert(timer_insert.base_tool.name.clone(), Box::new(timer_insert));
         map.insert(timer_update.base_tool.name.clone(), Box::new(timer_update));
         map.insert(timer_remove.base_tool.name.clone(), Box::new(timer_remove));
+        map.insert(
+            browser_navigate.base_tool.name.clone(),
+            Box::new(browser_navigate),
+        );
+        map.insert(
+            browser_snapshot.base_tool.name.clone(),
+            Box::new(browser_snapshot),
+        );
+        map.insert(
+            browser_screenshot.base_tool.name.clone(),
+            Box::new(browser_screenshot),
+        );
+        map.insert(browser_close.base_tool.name.clone(), Box::new(browser_close));
+        map.insert(browser_click.base_tool.name.clone(), Box::new(browser_click));
+        map.insert(browser_fill.base_tool.name.clone(), Box::new(browser_fill));
+        map.insert(
+            browser_get_html.base_tool.name.clone(),
+            Box::new(browser_get_html),
+        );
+        map.insert(
+            browser_get_text.base_tool.name.clone(),
+            Box::new(browser_get_text),
+        );
+        map.insert(browser_scroll.base_tool.name.clone(), Box::new(browser_scroll));
+        map.insert(
+            browser_wait_text.base_tool.name.clone(),
+            Box::new(browser_wait_text),
+        );
 
         map
     });
@@ -155,5 +194,16 @@ mod tests {
         assert!(names.contains(&"timer_insert".to_string()));
         assert!(names.contains(&"timer_update".to_string()));
         assert!(names.contains(&"timer_remove".to_string()));
+    }
+
+    #[test]
+    fn get_tool_by_group_browser_includes_browser_tools() {
+        let tools = get_tool_by_group("browser");
+        let names: Vec<_> = tools.iter().map(|t| t.deep_seek_schema().name).collect();
+
+        assert!(names.contains(&"browser_navigate".to_string()));
+        assert!(names.contains(&"browser_snapshot".to_string()));
+        assert!(names.contains(&"browser_screenshot".to_string()));
+        assert!(names.contains(&"browser_close".to_string()));
     }
 }
