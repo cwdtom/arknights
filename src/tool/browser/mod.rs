@@ -7,6 +7,8 @@ pub const GROUP_DESC: &str = "Browser tools for real page interaction.";
 
 mod click;
 mod close;
+pub(crate) mod driver;
+pub(crate) mod error;
 mod fill;
 mod get_html;
 mod get_text;
