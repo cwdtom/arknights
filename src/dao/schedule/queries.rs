@@ -41,7 +41,9 @@ pub(crate) fn list_by_range_with_conn(
 ) -> anyhow::Result<Vec<ScheduleEvent>> {
     query_events(
         conn,
-        &format!("{SELECT_SQL} where start_time >= ?1 and start_time <= ?2 order by start_time asc, id asc"),
+        &format!(
+            "{SELECT_SQL} where start_time <= ?2 and coalesce(end_time, start_time) >= ?1 order by start_time asc, id asc"
+        ),
         params![start, end],
     )
 }

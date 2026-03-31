@@ -2,6 +2,7 @@ pub(crate) mod base_tool;
 mod internet;
 mod memory;
 mod process_control;
+mod schedule;
 pub(crate) mod system;
 mod timer;
 
@@ -28,6 +29,13 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         let timer_insert = timer::Insert::new();
         let timer_update = timer::Update::new();
         let timer_remove = timer::Remove::new();
+        let schedule_insert = schedule::Insert::new();
+        let schedule_get = schedule::Get::new();
+        let schedule_list = schedule::List::new();
+        let schedule_search = schedule::Search::new();
+        let schedule_list_by_tag = schedule::ListByTag::new();
+        let schedule_update = schedule::Update::new();
+        let schedule_remove = schedule::Remove::new();
 
         let mut map: HashMap<String, Box<dyn LlmTool + Send + Sync>> = HashMap::new();
         map.insert(date.base_tool.name.clone(), Box::new(date));
@@ -58,6 +66,31 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         map.insert(timer_insert.base_tool.name.clone(), Box::new(timer_insert));
         map.insert(timer_update.base_tool.name.clone(), Box::new(timer_update));
         map.insert(timer_remove.base_tool.name.clone(), Box::new(timer_remove));
+        map.insert(
+            schedule_insert.base_tool.name.clone(),
+            Box::new(schedule_insert),
+        );
+        map.insert(schedule_get.base_tool.name.clone(), Box::new(schedule_get));
+        map.insert(
+            schedule_list.base_tool.name.clone(),
+            Box::new(schedule_list),
+        );
+        map.insert(
+            schedule_search.base_tool.name.clone(),
+            Box::new(schedule_search),
+        );
+        map.insert(
+            schedule_list_by_tag.base_tool.name.clone(),
+            Box::new(schedule_list_by_tag),
+        );
+        map.insert(
+            schedule_update.base_tool.name.clone(),
+            Box::new(schedule_update),
+        );
+        map.insert(
+            schedule_remove.base_tool.name.clone(),
+            Box::new(schedule_remove),
+        );
 
         map
     });
@@ -108,6 +141,13 @@ mod tests {
         assert!(names.contains(&"timer_insert".to_string()));
         assert!(names.contains(&"timer_update".to_string()));
         assert!(names.contains(&"timer_remove".to_string()));
+        assert!(names.contains(&"schedule_insert".to_string()));
+        assert!(names.contains(&"schedule_get".to_string()));
+        assert!(names.contains(&"schedule_list".to_string()));
+        assert!(names.contains(&"schedule_search".to_string()));
+        assert!(names.contains(&"schedule_list_by_tag".to_string()));
+        assert!(names.contains(&"schedule_update".to_string()));
+        assert!(names.contains(&"schedule_remove".to_string()));
     }
 
     #[test]
@@ -134,6 +174,13 @@ mod tests {
         assert!(get_tool("timer_insert").is_some());
         assert!(get_tool("timer_update").is_some());
         assert!(get_tool("timer_remove").is_some());
+        assert!(get_tool("schedule_insert").is_some());
+        assert!(get_tool("schedule_get").is_some());
+        assert!(get_tool("schedule_list").is_some());
+        assert!(get_tool("schedule_search").is_some());
+        assert!(get_tool("schedule_list_by_tag").is_some());
+        assert!(get_tool("schedule_update").is_some());
+        assert!(get_tool("schedule_remove").is_some());
     }
 
     #[test]
@@ -155,5 +202,19 @@ mod tests {
         assert!(names.contains(&"timer_insert".to_string()));
         assert!(names.contains(&"timer_update".to_string()));
         assert!(names.contains(&"timer_remove".to_string()));
+    }
+
+    #[test]
+    fn get_tool_by_group_schedule_includes_schedule_tools() {
+        let tools = get_tool_by_group("schedule");
+        let names: Vec<_> = tools.iter().map(|t| t.deep_seek_schema().name).collect();
+
+        assert!(names.contains(&"schedule_insert".to_string()));
+        assert!(names.contains(&"schedule_get".to_string()));
+        assert!(names.contains(&"schedule_list".to_string()));
+        assert!(names.contains(&"schedule_search".to_string()));
+        assert!(names.contains(&"schedule_list_by_tag".to_string()));
+        assert!(names.contains(&"schedule_update".to_string()));
+        assert!(names.contains(&"schedule_remove".to_string()));
     }
 }

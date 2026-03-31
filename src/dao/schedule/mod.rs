@@ -46,7 +46,11 @@ impl ScheduleDao {
             .await
     }
 
-    pub async fn list_by_range(&self, start: &str, end: &str) -> anyhow::Result<Vec<ScheduleEvent>> {
+    pub async fn list_by_range(
+        &self,
+        start: &str,
+        end: &str,
+    ) -> anyhow::Result<Vec<ScheduleEvent>> {
         let start = start.to_owned();
         let end = end.to_owned();
         self.base
