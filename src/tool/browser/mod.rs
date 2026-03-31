@@ -13,9 +13,12 @@ pub const GROUP_NAME: &str = "browser";
 pub const GROUP_DESC: &str = "Browser tools for real page interaction.";
 const SESSION_ERROR_CODE: &str = "browser_session_error";
 
+mod chromiumoxide_driver;
+#[cfg(test)]
+mod chromiumoxide_driver_tests;
+mod chromiumoxide_runtime;
 mod click;
 mod close;
-mod chromiumoxide_driver;
 pub(crate) mod driver;
 pub(crate) mod error;
 mod fill;
@@ -28,8 +31,6 @@ mod session;
 mod snapshot;
 mod snapshot_js;
 mod wait_text;
-#[cfg(test)]
-mod chromiumoxide_driver_tests;
 
 pub use click::ClickTool;
 pub use close::CloseTool;
@@ -47,7 +48,7 @@ where
     F: Future<Output = anyhow::Result<T>>,
 {
     session::run_with_browser_scope(
-        Arc::new(chromiumoxide_driver::ChromiumoxideBrowserDriverFactory::new()),
+        Arc::new(chromiumoxide_runtime::ChromiumoxideBrowserDriverFactory::new()),
         future,
     )
     .await

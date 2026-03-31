@@ -73,16 +73,6 @@ impl BrowserScope {
     }
 }
 
-#[derive(Default)]
-struct UnavailableBrowserDriverFactory;
-
-#[async_trait::async_trait]
-impl BrowserDriverFactory for UnavailableBrowserDriverFactory {
-    async fn create(&self) -> anyhow::Result<Box<dyn BrowserDriver>> {
-        Err(anyhow!("browser session factory not implemented"))
-    }
-}
-
 fn browser_close_error(error: crate::tool::browser::error::BrowserToolError) -> anyhow::Error {
     anyhow!(
         "browser session close failed (code: {}): {}",
@@ -138,13 +128,6 @@ where
             MainExecutionErrorWithCleanupContext::new(main_error, cleanup_error),
         )),
     }
-}
-
-pub async fn run_with_default_browser_scope<F, T>(future: F) -> anyhow::Result<T>
-where
-    F: Future<Output = anyhow::Result<T>>,
-{
-    run_with_browser_scope(Arc::new(UnavailableBrowserDriverFactory), future).await
 }
 
 pub async fn with_browser_session<F, Fut, T>(operation: F) -> anyhow::Result<T>

@@ -1,16 +1,54 @@
+use super::chromiumoxide_runtime::{
+    combine_cleanup_results, shutdown_handler_task, take_first_or_stale,
+};
 use super::{
-    ClickTool, CloseTool, FillTool, GetHtmlTool, GetTextTool, NavigateTool,
-    ScreenshotTool, ScrollTool, SnapshotTool, WaitTextTool, run_with_default_browser_scope,
+    ClickTool, CloseTool, FillTool, GetHtmlTool, GetTextTool, NavigateTool, ScreenshotTool,
+    ScrollTool, SnapshotTool, WaitTextTool, run_with_default_browser_scope,
 };
 use crate::llm::base_llm::{FunctionCall, ToolCall};
 use crate::tool::base_tool::LlmTool;
+use anyhow::anyhow;
 use serde_json::{Value, json};
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
 const TEST_PAGE_HTML: &str = r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Browser Smoke</title><style>body{font-family:sans-serif;margin:0;padding:24px}.spacer{height:1200px}#hidden-panel{display:none;margin-top:24px}</style></head><body><h1>Browser Smoke</h1><label for="name-input">Name</label><input id="name-input" name="name-input"/><button id="apply-button" type="button" onclick="document.getElementById('status').textContent='Hello, '+document.getElementById('name-input').value;document.getElementById('hidden-panel').style.display='block';">Apply</button><p id="status">Waiting</p><div class="spacer"></div><section id="hidden-panel"><button id="finish-button" type="button">Finish</button></section></body></html>"#;
+
+#[test]
+fn take_first_or_stale_returns_stale_error_for_empty_lookup() {
+    let error = take_first_or_stale::<i32>(vec![]).unwrap_err();
+
+    assert_eq!(error.code, "element_id_stale");
+    assert_eq!(error.message, "call browser_snapshot again");
+}
+
+#[test]
+fn combine_cleanup_results_preserves_primary_error_and_mentions_cleanup_failure() {
+    let error = combine_cleanup_results(
+        Err(anyhow!("new page failed")),
+        Err(anyhow!("handler cleanup failed")),
+        "browser launch cleanup",
+    )
+    .unwrap_err();
+
+    let rendered = error.to_string();
+    assert!(rendered.contains("new page failed"));
+    assert!(rendered.contains("browser launch cleanup also failed"));
+    assert!(rendered.contains("handler cleanup failed"));
+}
+
+#[tokio::test]
+async fn shutdown_handler_task_cancels_pending_task() {
+    let handle = tokio::spawn(async {
+        tokio::time::sleep(Duration::from_secs(60)).await;
+        Ok::<(), anyhow::Error>(())
+    });
+
+    shutdown_handler_task(handle).await.unwrap();
+}
 
 #[tokio::test]
 async fn chromiumoxide_smoke_flow() {
@@ -23,7 +61,12 @@ async fn chromiumoxide_smoke_flow() {
         assert_eq!(first_snapshot["result"]["url"], server.url());
         assert_eq!(first_snapshot["result"]["title"], "Browser Smoke");
         assert_eq!(first_snapshot["result"]["scroll_y"], 0);
-        assert!(first_snapshot["result"]["document_height"].as_i64().unwrap() > 0);
+        assert!(
+            first_snapshot["result"]["document_height"]
+                .as_i64()
+                .unwrap()
+                > 0
+        );
         let input_id = find_id(&first_snapshot["result"]["elements"], "name-input");
         let apply_id = find_id(&first_snapshot["result"]["elements"], "Apply");
 
@@ -113,7 +156,11 @@ impl TestPageServer {
                 let _ = socket.read(&mut request).await;
                 let wants_favicon = String::from_utf8_lossy(&request).contains("GET /favicon.ico");
                 let body = if wants_favicon { "" } else { html };
-                let status = if wants_favicon { "404 Not Found" } else { "200 OK" };
+                let status = if wants_favicon {
+                    "404 Not Found"
+                } else {
+                    "200 OK"
+                };
                 let response = format!(
                     "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     body.len(),
