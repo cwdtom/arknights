@@ -30,7 +30,7 @@ impl LlmTool for GetTextTool {
             json!({
                 "element_id": {
                     "type": "string",
-                    "description": "Optional element identifier",
+                    "description": "Optional target element",
                 }
             }),
             &[],
@@ -65,9 +65,7 @@ mod tests {
     use crate::llm::base_llm::{FunctionCall, ToolCall};
     use crate::tool::base_tool::LlmTool;
     use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
-    use crate::tool::browser::error::{
-        BrowserToolError, BrowserToolResult, BrowserToolUnitResult,
-    };
+    use crate::tool::browser::error::{BrowserToolError, BrowserToolResult, BrowserToolUnitResult};
     use crate::tool::browser::session::{BrowserDriverFactory, run_with_browser_scope};
     use serde_json::Value;
     use std::sync::{Arc, Mutex};
@@ -122,10 +120,6 @@ mod tests {
             Ok(serde_json::json!({ "element_id": element_id, "text": "example" }))
         }
 
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_html call")
-        }
-
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             panic!("unexpected screenshot call")
         }
@@ -168,10 +162,6 @@ mod tests {
                 "element_not_found",
                 "element does not exist",
             ))
-        }
-
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_html call")
         }
 
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
@@ -232,27 +222,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_text_calls_driver_without_element_id() {
-        let factory = Arc::new(GetTextFactory::default());
-        let tool = GetTextTool::new();
-
-        let raw = run_with_browser_scope(factory.clone(), async {
-            Ok::<_, anyhow::Error>(tool.deep_seek_call(&get_text_call("{}")).await)
-        })
-        .await
-        .unwrap();
-
-        let value: Value = serde_json::from_str(&raw).unwrap();
-        assert_eq!(value["ok"], true);
-        assert!(value["result"]["element_id"].is_null());
-        assert_eq!(value["result"]["text"], "example");
-        assert_eq!(
-            *factory.last_element_id.lock().expect("lock poisoned"),
-            Some(None)
-        );
-    }
-
-    #[tokio::test]
     async fn get_text_calls_driver_with_element_id() {
         let factory = Arc::new(GetTextFactory::default());
         let tool = GetTextTool::new();
@@ -273,6 +242,27 @@ mod tests {
         assert_eq!(
             *factory.last_element_id.lock().expect("lock poisoned"),
             Some(Some("node-1".to_string()))
+        );
+    }
+
+    #[tokio::test]
+    async fn get_text_calls_driver_without_element_id() {
+        let factory = Arc::new(GetTextFactory::default());
+        let tool = GetTextTool::new();
+
+        let raw = run_with_browser_scope(factory.clone(), async {
+            Ok::<_, anyhow::Error>(tool.deep_seek_call(&get_text_call("{}")).await)
+        })
+        .await
+        .unwrap();
+
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["ok"], true);
+        assert!(value["result"]["element_id"].is_null());
+        assert_eq!(value["result"]["text"], "example");
+        assert_eq!(
+            *factory.last_element_id.lock().expect("lock poisoned"),
+            Some(None)
         );
     }
 

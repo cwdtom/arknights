@@ -82,9 +82,6 @@ impl ScrollTool {
 
 fn build_scroll_request(args: ScrollArgs) -> Result<ScrollRequest, String> {
     if let Some(element_id) = args.element_id {
-        if args.direction.is_some() || args.pages.is_some() {
-            return Err("`element_id` cannot be combined with `direction` or `pages`".to_string());
-        }
         return Ok(ScrollRequest::Element { element_id });
     }
 
@@ -173,10 +170,6 @@ mod tests {
             panic!("unexpected get_text call")
         }
 
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_html call")
-        }
-
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             panic!("unexpected screenshot call")
         }
@@ -254,6 +247,33 @@ mod tests {
             Ok::<_, anyhow::Error>(
                 tool.deep_seek_call(&scroll_call(r#"{"element_id":"panel-1"}"#))
                     .await,
+            )
+        })
+        .await
+        .unwrap();
+
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["ok"], true);
+        assert_eq!(value["result"]["element_id"], "panel-1");
+        assert_eq!(
+            *factory.last_request.lock().expect("lock poisoned"),
+            Some(ScrollRequest::Element {
+                element_id: "panel-1".to_string(),
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn scroll_prefers_element_id_when_direction_and_pages_are_also_provided() {
+        let factory = Arc::new(ScrollFactory::default());
+        let tool = ScrollTool::new();
+
+        let raw = run_with_browser_scope(factory.clone(), async {
+            Ok::<_, anyhow::Error>(
+                tool.deep_seek_call(
+                    &scroll_call(r#"{"element_id":"panel-1","direction":"down","pages":2}"#),
+                )
+                .await,
             )
         })
         .await

@@ -8,10 +8,12 @@ use std::collections::HashSet;
 const MAX_TURNS: u8 = 20;
 const THINK_PROMPT: &str = r#"
 You are the "think" node in a ReAct loop.
+
 Primary rule:
 - Using appropriate tools to solve problems.
 - When information is missing, be sure to use the memory tool to search for an answer once before calling ask_user.
-- Browser tools are stateful within the current ReAct execution and share one page session, so call browser_snapshot before any element_id-based action and call browser_snapshot again after navigation or any stale element error before continuing.
+- Browser tools are stateful within the current ReAct execution and share one page session,
+  so call browser_snapshot before any element_id-based action and call browser_snapshot again after navigation or any stale element error before continuing.
 
 Output contract:
 - Keep the tool args language as same as the user's message.

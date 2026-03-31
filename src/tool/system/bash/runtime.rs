@@ -1,5 +1,4 @@
 use super::{BASH_COMMAND_TIMEOUT, BASH_KILL_WAIT_TIMEOUT, MAX_BASH_RESULT_LEN, TRUNCATED_SUFFIX};
-use crate::{im, timer};
 use anyhow::anyhow;
 #[cfg(unix)]
 use libc::{SIGKILL, killpg, pid_t};
@@ -12,7 +11,6 @@ use tracing::{error, info};
 
 pub(super) async fn run_bash_command(command_text: String) -> String {
     info!("execute bash command: {}", command_text);
-    announce_command_start(&command_text);
 
     let mut command = match spawn_bash_command(command_text) {
         Ok(command) => command,
@@ -25,15 +23,6 @@ pub(super) async fn run_bash_command(command_text: String) -> String {
     };
 
     build_command_result(command, status).await
-}
-
-fn announce_command_start(command_text: &str) {
-    if timer::timer_service::get_thread_local_timer_id().is_none() {
-        im::base_im::async_send_text(format!(
-            "EXEC {}",
-            command_text.lines().next().unwrap_or("")
-        ));
-    }
 }
 
 fn spawn_bash_command(command_text: String) -> Result<SpawnedCommand, String> {

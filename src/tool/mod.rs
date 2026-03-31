@@ -33,10 +33,8 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         let browser_navigate = browser::NavigateTool::new();
         let browser_snapshot = browser::SnapshotTool::new();
         let browser_screenshot = browser::ScreenshotTool::new();
-        let browser_close = browser::CloseTool::new();
         let browser_click = browser::ClickTool::new();
         let browser_fill = browser::FillTool::new();
-        let browser_get_html = browser::GetHtmlTool::new();
         let browser_get_text = browser::GetTextTool::new();
         let browser_scroll = browser::ScrollTool::new();
         let browser_wait_text = browser::WaitTextTool::new();
@@ -90,18 +88,10 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
             Box::new(browser_screenshot),
         );
         map.insert(
-            browser_close.base_tool.name.clone(),
-            Box::new(browser_close),
-        );
-        map.insert(
             browser_click.base_tool.name.clone(),
             Box::new(browser_click),
         );
         map.insert(browser_fill.base_tool.name.clone(), Box::new(browser_fill));
-        map.insert(
-            browser_get_html.base_tool.name.clone(),
-            Box::new(browser_get_html),
-        );
         map.insert(
             browser_get_text.base_tool.name.clone(),
             Box::new(browser_get_text),
@@ -261,10 +251,8 @@ mod tests {
             "browser_navigate",
             "browser_snapshot",
             "browser_screenshot",
-            "browser_close",
             "browser_click",
             "browser_fill",
-            "browser_get_html",
             "browser_get_text",
             "browser_scroll",
             "browser_wait_text",
@@ -273,6 +261,8 @@ mod tests {
         for name in expected {
             assert!(names.contains(&name.to_string()), "missing {}", name);
         }
+        assert!(!names.contains(&"browser_get_html".to_string()));
+        assert!(!names.contains(&"browser_close".to_string()));
     }
 
     #[test]

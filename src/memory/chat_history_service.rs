@@ -19,6 +19,7 @@ fn chat_history_vec_dao(config: &RagRuntimeConfig) -> anyhow::Result<ChatHistory
 }
 
 const RAG_SEARCH_LIMIT: usize = 5;
+const MAX_HISTORY_CONTENT_LEN: usize = 200;
 
 pub async fn save_chat_history(user_content: &str, assistant_content: &str) -> anyhow::Result<i64> {
     save_chat_history_with_backend(
@@ -60,7 +61,14 @@ pub async fn build_chat_history_messages(limit: usize) -> anyhow::Result<Vec<Mes
         }
 
         let user_content = history.user_content.clone();
-        let assistant_content = history.assistant_content.clone();
+        let mut assistant_content: String = history.assistant_content.clone();
+        if assistant_content.chars().count() > MAX_HISTORY_CONTENT_LEN {
+            assistant_content = assistant_content
+                .chars()
+                .take(MAX_HISTORY_CONTENT_LEN)
+                .collect();
+            assistant_content += "[truncated]";
+        }
         let create_time_str = history.created_at;
         messages.push(Message::new(
             Role::User,

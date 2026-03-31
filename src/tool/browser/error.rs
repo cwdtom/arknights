@@ -62,8 +62,9 @@ pub fn browser_tool_unit_result_json(result: BrowserToolUnitResult) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        browser_error_json, browser_ok_json, browser_tool_error_json, browser_tool_result_json,
-        browser_tool_unit_result_json, BrowserToolError, BrowserToolResult, BrowserToolUnitResult,
+        BrowserToolError, BrowserToolResult, BrowserToolUnitResult, browser_error_json,
+        browser_ok_json, browser_tool_error_json, browser_tool_result_json,
+        browser_tool_unit_result_json,
     };
     use serde_json::Value;
 
@@ -104,8 +105,10 @@ mod tests {
         assert_eq!(ok_value["ok"], true);
         assert_eq!(ok_value["result"]["url"], "https://example.com");
 
-        let err: BrowserToolResult =
-            Err(BrowserToolError::new("element_id_stale", "call browser_snapshot again"));
+        let err: BrowserToolResult = Err(BrowserToolError::new(
+            "element_id_stale",
+            "call browser_snapshot again",
+        ));
         let err_raw = browser_tool_result_json(err);
         let err_value: Value = serde_json::from_str(&err_raw).unwrap();
         assert_eq!(err_value["ok"], false);
@@ -125,8 +128,10 @@ mod tests {
 
     #[test]
     fn browser_tool_unit_result_json_error_reuses_stable_error_shape() {
-        let err: BrowserToolUnitResult =
-            Err(BrowserToolError::new("session_not_found", "browser session already closed"));
+        let err: BrowserToolUnitResult = Err(BrowserToolError::new(
+            "session_not_found",
+            "browser session already closed",
+        ));
         let raw = browser_tool_unit_result_json(err);
         let value: Value = serde_json::from_str(&raw).unwrap();
 

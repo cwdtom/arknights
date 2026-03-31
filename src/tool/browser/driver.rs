@@ -26,7 +26,6 @@ pub trait BrowserDriver: Send {
     async fn scroll(&mut self, request: ScrollRequest) -> BrowserToolResult;
     async fn wait_text(&mut self, text: &str, timeout_ms: Option<u64>) -> BrowserToolResult;
     async fn get_text(&mut self, element_id: Option<&str>) -> BrowserToolResult;
-    async fn get_html(&mut self, element_id: Option<&str>) -> BrowserToolResult;
     async fn screenshot(&mut self, element_id: Option<&str>) -> BrowserToolResult;
     async fn close(&mut self) -> BrowserToolUnitResult;
 }
@@ -35,7 +34,7 @@ pub trait BrowserDriver: Send {
 mod tests {
     use super::{BrowserDriver, ScrollDirection, ScrollRequest};
     use crate::tool::browser::error::{
-        browser_tool_error_json, BrowserToolError, BrowserToolResult, BrowserToolUnitResult,
+        BrowserToolError, BrowserToolResult, BrowserToolUnitResult, browser_tool_error_json,
     };
     use serde_json::Value;
 
@@ -63,19 +62,11 @@ mod tests {
             Ok(serde_json::json!({}))
         }
 
-        async fn wait_text(
-            &mut self,
-            _text: &str,
-            _timeout_ms: Option<u64>,
-        ) -> BrowserToolResult {
+        async fn wait_text(&mut self, _text: &str, _timeout_ms: Option<u64>) -> BrowserToolResult {
             Ok(serde_json::json!({}))
         }
 
         async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            Ok(serde_json::json!({}))
-        }
-
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             Ok(serde_json::json!({}))
         }
 
@@ -92,22 +83,6 @@ mod tests {
     }
 
     #[test]
-    fn scroll_request_direction_keeps_explicit_fields() {
-        let request = ScrollRequest::Direction {
-            direction: ScrollDirection::Down,
-            pages: 300,
-        };
-
-        assert_eq!(
-            request,
-            ScrollRequest::Direction {
-                direction: ScrollDirection::Down,
-                pages: 300,
-            }
-        );
-    }
-
-    #[test]
     fn scroll_request_element_keeps_element_id() {
         let request = ScrollRequest::Element {
             element_id: "node-1".to_string(),
@@ -117,6 +92,22 @@ mod tests {
             request,
             ScrollRequest::Element {
                 element_id: "node-1".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn scroll_request_direction_keeps_explicit_fields() {
+        let request = ScrollRequest::Direction {
+            direction: ScrollDirection::Down,
+            pages: 2,
+        };
+
+        assert_eq!(
+            request,
+            ScrollRequest::Direction {
+                direction: ScrollDirection::Down,
+                pages: 2,
             }
         );
     }
