@@ -216,8 +216,11 @@ mod tests {
         let factory = Arc::new(FakeDriverFactory::default());
 
         run_with_browser_scope(factory.clone(), async {
+            assert_eq!(factory.create_count(), 0);
             with_browser_session(|_| async { Ok(()) }).await.unwrap();
+            assert_eq!(factory.create_count(), 1);
             with_browser_session(|_| async { Ok(()) }).await.unwrap();
+            assert_eq!(factory.create_count(), 1);
             Ok::<_, anyhow::Error>(())
         })
         .await
