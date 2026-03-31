@@ -96,9 +96,18 @@ where
     F: Future<Output = anyhow::Result<T>>,
 {
     let scope = Arc::new(BrowserScope::new(factory));
-    let result = BROWSER_SCOPE.scope(scope.clone(), future).await;
-    close_scope(scope).await?;
-    result
+    let main_result = BROWSER_SCOPE.scope(scope.clone(), future).await;
+    let cleanup_result = close_scope(scope).await;
+
+    match (main_result, cleanup_result) {
+        (Ok(value), Ok(())) => Ok(value),
+        (Ok(_), Err(cleanup_error)) => Err(cleanup_error),
+        (Err(main_error), Ok(())) => Err(main_error),
+        (Err(main_error), Err(cleanup_error)) => Err(anyhow!(
+            "{}; browser scope cleanup also failed: {cleanup_error:#}",
+            main_error
+        )),
+    }
 }
 
 pub async fn run_with_default_browser_scope<F, T>(future: F) -> anyhow::Result<T>
@@ -135,6 +144,7 @@ mod tests {
     use super::{BrowserDriverFactory, run_with_browser_scope, with_browser_session};
     use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
     use crate::tool::browser::error::{BrowserToolResult, BrowserToolUnitResult};
+    use anyhow::anyhow;
     use std::sync::Arc;
 
     #[derive(Default)]
@@ -211,6 +221,77 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct FailingCloseDriverFactory {
+        close_count: Arc<AtomicUsize>,
+    }
+
+    impl FailingCloseDriverFactory {
+        fn close_count(&self) -> usize {
+            self.close_count.load(Ordering::SeqCst)
+        }
+    }
+
+    struct FailingCloseDriver {
+        close_count: Arc<AtomicUsize>,
+    }
+
+    #[async_trait::async_trait]
+    impl BrowserDriver for FailingCloseDriver {
+        async fn navigate(&mut self, _url: &str) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn snapshot(&mut self) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn click(&mut self, _element_id: &str) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn fill(&mut self, _element_id: &str, _value: &str) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn scroll(&mut self, _request: ScrollRequest) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn wait_text(&mut self, _text: &str, _timeout_ms: Option<u64>) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn close(&mut self) -> BrowserToolUnitResult {
+            self.close_count.fetch_add(1, Ordering::SeqCst);
+            Err(crate::tool::browser::error::BrowserToolError::new(
+                "close_failed",
+                "cleanup failed",
+            ))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl BrowserDriverFactory for FailingCloseDriverFactory {
+        async fn create(&self) -> anyhow::Result<Box<dyn BrowserDriver>> {
+            Ok(Box::new(FailingCloseDriver {
+                close_count: self.close_count.clone(),
+            }))
+        }
+    }
+
     #[tokio::test]
     async fn browser_scope_creates_one_session_per_execute() {
         let factory = Arc::new(FakeDriverFactory::default());
@@ -241,5 +322,22 @@ mod tests {
         .unwrap();
 
         assert_eq!(factory.close_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn browser_scope_preserves_main_error_when_cleanup_also_fails() {
+        let factory = Arc::new(FailingCloseDriverFactory::default());
+
+        let result: anyhow::Result<()> = run_with_browser_scope(factory.clone(), async {
+            with_browser_session(|_| async { Ok(()) }).await.unwrap();
+            Err::<(), anyhow::Error>(anyhow!("main failure"))
+        })
+        .await;
+
+        assert_eq!(factory.close_count(), 1);
+        let err = result.unwrap_err();
+        let rendered = format!("{err:#}");
+        assert!(rendered.contains("main failure"));
+        assert!(rendered.contains("cleanup failed"));
     }
 }
