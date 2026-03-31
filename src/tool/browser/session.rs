@@ -1,5 +1,7 @@
 use crate::tool::browser::driver::BrowserDriver;
 use anyhow::anyhow;
+use std::error::Error as StdError;
+use std::fmt::{Display, Formatter};
 use std::future::Future;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -88,6 +90,35 @@ fn browser_close_error(error: crate::tool::browser::error::BrowserToolError) -> 
     )
 }
 
+#[derive(Debug)]
+struct MainExecutionErrorWithCleanupContext {
+    main: anyhow::Error,
+    cleanup: anyhow::Error,
+}
+
+impl MainExecutionErrorWithCleanupContext {
+    fn new(main: anyhow::Error, cleanup: anyhow::Error) -> Self {
+        Self { main, cleanup }
+    }
+
+    #[cfg(test)]
+    fn cleanup_error(&self) -> &anyhow::Error {
+        &self.cleanup
+    }
+}
+
+impl Display for MainExecutionErrorWithCleanupContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.main)
+    }
+}
+
+impl StdError for MainExecutionErrorWithCleanupContext {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(self.main.as_ref())
+    }
+}
+
 pub async fn run_with_browser_scope<F, T>(
     factory: Arc<dyn BrowserDriverFactory>,
     future: F,
@@ -103,9 +134,8 @@ where
         (Ok(value), Ok(())) => Ok(value),
         (Ok(_), Err(cleanup_error)) => Err(cleanup_error),
         (Err(main_error), Ok(())) => Err(main_error),
-        (Err(main_error), Err(cleanup_error)) => Err(anyhow!(
-            "{}; browser scope cleanup also failed: {cleanup_error:#}",
-            main_error
+        (Err(main_error), Err(cleanup_error)) => Err(anyhow::Error::new(
+            MainExecutionErrorWithCleanupContext::new(main_error, cleanup_error),
         )),
     }
 }
@@ -141,10 +171,14 @@ async fn close_scope(scope: Arc<BrowserScope>) -> anyhow::Result<()> {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use super::{BrowserDriverFactory, run_with_browser_scope, with_browser_session};
+    use super::{
+        BrowserDriverFactory, MainExecutionErrorWithCleanupContext, run_with_browser_scope,
+        with_browser_session,
+    };
     use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
     use crate::tool::browser::error::{BrowserToolResult, BrowserToolUnitResult};
-    use anyhow::anyhow;
+    use std::error::Error as StdError;
+    use std::fmt::{Display, Formatter};
     use std::sync::Arc;
 
     #[derive(Default)]
@@ -326,18 +360,39 @@ mod tests {
 
     #[tokio::test]
     async fn browser_scope_preserves_main_error_when_cleanup_also_fails() {
+        #[derive(Debug)]
+        struct MainFailure;
+
+        impl Display for MainFailure {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                write!(f, "main failure")
+            }
+        }
+
+        impl StdError for MainFailure {}
+
         let factory = Arc::new(FailingCloseDriverFactory::default());
 
         let result: anyhow::Result<()> = run_with_browser_scope(factory.clone(), async {
             with_browser_session(|_| async { Ok(()) }).await.unwrap();
-            Err::<(), anyhow::Error>(anyhow!("main failure"))
+            Err::<(), anyhow::Error>(MainFailure.into())
         })
         .await;
 
         assert_eq!(factory.close_count(), 1);
         let err = result.unwrap_err();
-        let rendered = format!("{err:#}");
-        assert!(rendered.contains("main failure"));
-        assert!(rendered.contains("cleanup failed"));
+        assert_eq!(err.to_string(), "main failure");
+
+        let combined = err
+            .downcast_ref::<MainExecutionErrorWithCleanupContext>()
+            .expect("cleanup context must be attached without replacing main error");
+        assert!(combined.cleanup_error().to_string().contains("cleanup failed"));
+
+        let mut chain = err.chain();
+        chain.next();
+        let main_in_chain = chain
+            .find_map(|cause| cause.downcast_ref::<MainFailure>())
+            .is_some();
+        assert!(main_in_chain, "main failure must stay in the error chain");
     }
 }
