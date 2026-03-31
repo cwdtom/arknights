@@ -1,4 +1,5 @@
 use crate::tool::browser::driver::BrowserDriver;
+use crate::tool::browser::error::BrowserToolUnitResult;
 use anyhow::anyhow;
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
@@ -154,6 +155,20 @@ where
     let scope = current_scope()?;
     let session = scope.get_or_create_session().await?;
     operation(session).await
+}
+
+pub async fn close_browser_session() -> anyhow::Result<BrowserToolUnitResult> {
+    let scope = current_scope()?;
+    let session = match {
+        let mut guard = scope.session.lock().await;
+        guard.take()
+    } {
+        Some(session) => session,
+        None => Arc::new(BrowserSession::new(scope.factory.create().await?)),
+    };
+
+    let mut driver = session.lock_driver().await;
+    Ok(driver.close().await)
 }
 
 fn current_scope() -> anyhow::Result<Arc<BrowserScope>> {

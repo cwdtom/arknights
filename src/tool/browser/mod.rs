@@ -1,9 +1,17 @@
-use crate::llm::base_llm::{Function, Parameters};
+use crate::llm::base_llm::{Function, Parameters, ToolCall};
 use crate::tool::base_tool::BaseTool;
+use crate::tool::browser::error::{
+    BrowserToolResult, browser_error_json, browser_tool_result_json, browser_tool_unit_result_json,
+};
+use serde::de::DeserializeOwned;
 use serde_json::Value;
+use std::future::Future;
+use std::sync::Arc;
+use tracing::error;
 
 pub const GROUP_NAME: &str = "browser";
 pub const GROUP_DESC: &str = "Browser tools for real page interaction.";
+const SESSION_ERROR_CODE: &str = "browser_session_error";
 
 mod click;
 mod close;
@@ -51,4 +59,44 @@ pub(crate) fn browser_schema(base_tool: &BaseTool, params: Value, required: &[&s
 
 pub(crate) fn placeholder_response(base_tool: &BaseTool) -> String {
     format!("Error: {} not implemented yet.", base_tool.name)
+}
+
+pub(crate) fn invalid_arguments(err: impl std::fmt::Display) -> String {
+    format!("Error: invalid arguments: {err}")
+}
+
+pub(crate) fn parse_tool_args<T: DeserializeOwned>(
+    tool_call: &ToolCall,
+    label: &str,
+) -> Result<T, String> {
+    serde_json::from_str(&tool_call.function.arguments).map_err(|err| {
+        error!("failed to parse {} arguments: {:?}", label, err);
+        invalid_arguments(err)
+    })
+}
+
+pub(crate) async fn run_browser_result<F, Fut>(action: &str, operation: F) -> String
+where
+    F: FnOnce(Arc<session::BrowserSession>) -> Fut,
+    Fut: Future<Output = anyhow::Result<BrowserToolResult>>,
+{
+    match session::with_browser_session(operation).await {
+        Ok(result) => browser_tool_result_json(result),
+        Err(err) => browser_session_error(action, err),
+    }
+}
+
+pub(crate) async fn run_browser_close_result(action: &str) -> String {
+    match session::close_browser_session().await {
+        Ok(result) => browser_tool_unit_result_json(result),
+        Err(err) => browser_session_error(action, err),
+    }
+}
+
+fn browser_session_error(action: &str, err: anyhow::Error) -> String {
+    error!("browser {} session failed: {:?}", action, err);
+    browser_error_json(
+        SESSION_ERROR_CODE,
+        &format!("browser session error during {action}: {err}"),
+    )
 }
