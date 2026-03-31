@@ -100,16 +100,15 @@ impl MainExecutionErrorWithCleanupContext {
     fn new(main: anyhow::Error, cleanup: anyhow::Error) -> Self {
         Self { main, cleanup }
     }
-
-    #[cfg(test)]
-    fn cleanup_error(&self) -> &anyhow::Error {
-        &self.cleanup
-    }
 }
 
 impl Display for MainExecutionErrorWithCleanupContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.main)
+        write!(
+            f,
+            "{}; browser scope cleanup also failed: {}",
+            self.main, self.cleanup
+        )
     }
 }
 
@@ -171,10 +170,7 @@ async fn close_scope(scope: Arc<BrowserScope>) -> anyhow::Result<()> {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use super::{
-        BrowserDriverFactory, MainExecutionErrorWithCleanupContext, run_with_browser_scope,
-        with_browser_session,
-    };
+    use super::{BrowserDriverFactory, run_with_browser_scope, with_browser_session};
     use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
     use crate::tool::browser::error::{BrowserToolResult, BrowserToolUnitResult};
     use std::error::Error as StdError;
@@ -381,12 +377,15 @@ mod tests {
 
         assert_eq!(factory.close_count(), 1);
         let err = result.unwrap_err();
-        assert_eq!(err.to_string(), "main failure");
-
-        let combined = err
-            .downcast_ref::<MainExecutionErrorWithCleanupContext>()
-            .expect("cleanup context must be attached without replacing main error");
-        assert!(combined.cleanup_error().to_string().contains("cleanup failed"));
+        let rendered = err.to_string();
+        assert!(
+            rendered.starts_with("main failure"),
+            "main error must stay primary in display output"
+        );
+        assert!(
+            rendered.contains("cleanup failed"),
+            "cleanup failure must be visible in normal display output"
+        );
 
         let mut chain = err.chain();
         chain.next();
