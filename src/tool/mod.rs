@@ -1,5 +1,5 @@
 pub(crate) mod base_tool;
-mod browser;
+pub(crate) mod browser;
 mod internet;
 mod memory;
 mod process_control;
@@ -81,8 +81,14 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
             browser_screenshot.base_tool.name.clone(),
             Box::new(browser_screenshot),
         );
-        map.insert(browser_close.base_tool.name.clone(), Box::new(browser_close));
-        map.insert(browser_click.base_tool.name.clone(), Box::new(browser_click));
+        map.insert(
+            browser_close.base_tool.name.clone(),
+            Box::new(browser_close),
+        );
+        map.insert(
+            browser_click.base_tool.name.clone(),
+            Box::new(browser_click),
+        );
         map.insert(browser_fill.base_tool.name.clone(), Box::new(browser_fill));
         map.insert(
             browser_get_html.base_tool.name.clone(),
@@ -92,7 +98,10 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
             browser_get_text.base_tool.name.clone(),
             Box::new(browser_get_text),
         );
-        map.insert(browser_scroll.base_tool.name.clone(), Box::new(browser_scroll));
+        map.insert(
+            browser_scroll.base_tool.name.clone(),
+            Box::new(browser_scroll),
+        );
         map.insert(
             browser_wait_text.base_tool.name.clone(),
             Box::new(browser_wait_text),

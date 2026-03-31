@@ -15,6 +15,7 @@ mod get_text;
 mod navigate;
 mod screenshot;
 mod scroll;
+mod session;
 mod snapshot;
 mod wait_text;
 
@@ -29,6 +30,8 @@ pub use scroll::ScrollTool;
 pub use snapshot::SnapshotTool;
 pub use wait_text::WaitTextTool;
 
+pub(crate) use session::run_with_default_browser_scope;
+
 pub(crate) fn new_base_tool(name_suffix: &str, description: &str) -> BaseTool {
     BaseTool {
         group_name: GROUP_NAME.to_string(),
@@ -42,10 +45,7 @@ pub(crate) fn browser_schema(base_tool: &BaseTool, params: Value, required: &[&s
     Function {
         name: base_tool.name.clone(),
         description: base_tool.description.clone(),
-        parameters: Parameters::new(
-            params,
-            required.iter().map(|s| s.to_string()).collect(),
-        ),
+        parameters: Parameters::new(params, required.iter().map(|s| s.to_string()).collect()),
     }
 }
 

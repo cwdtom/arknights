@@ -1,0 +1,242 @@
+use crate::tool::browser::driver::BrowserDriver;
+use anyhow::anyhow;
+use std::future::Future;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+tokio::task_local! {
+    static BROWSER_SCOPE: Arc<BrowserScope>;
+}
+
+#[async_trait::async_trait]
+pub trait BrowserDriverFactory: Send + Sync {
+    async fn create(&self) -> anyhow::Result<Box<dyn BrowserDriver>>;
+}
+
+pub struct BrowserSession {
+    driver: Mutex<Box<dyn BrowserDriver>>,
+}
+
+impl BrowserSession {
+    fn new(driver: Box<dyn BrowserDriver>) -> Self {
+        Self {
+            driver: Mutex::new(driver),
+        }
+    }
+
+    pub async fn lock_driver(&self) -> tokio::sync::MutexGuard<'_, Box<dyn BrowserDriver>> {
+        self.driver.lock().await
+    }
+
+    async fn close(&self) -> anyhow::Result<()> {
+        let mut driver = self.lock_driver().await;
+        driver.close().await.map_err(browser_close_error)
+    }
+}
+
+pub struct BrowserScope {
+    session: Mutex<Option<Arc<BrowserSession>>>,
+    factory: Arc<dyn BrowserDriverFactory>,
+}
+
+impl BrowserScope {
+    fn new(factory: Arc<dyn BrowserDriverFactory>) -> Self {
+        Self {
+            session: Mutex::new(None),
+            factory,
+        }
+    }
+
+    async fn get_or_create_session(&self) -> anyhow::Result<Arc<BrowserSession>> {
+        let mut guard = self.session.lock().await;
+        if let Some(session) = guard.as_ref() {
+            return Ok(session.clone());
+        }
+        let driver = self.factory.create().await?;
+        let session = Arc::new(BrowserSession::new(driver));
+        guard.replace(session.clone());
+        Ok(session)
+    }
+
+    async fn close(&self) -> anyhow::Result<()> {
+        let session = {
+            let mut guard = self.session.lock().await;
+            guard.take()
+        };
+        if let Some(session) = session {
+            session.close().await?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct UnavailableBrowserDriverFactory;
+
+#[async_trait::async_trait]
+impl BrowserDriverFactory for UnavailableBrowserDriverFactory {
+    async fn create(&self) -> anyhow::Result<Box<dyn BrowserDriver>> {
+        Err(anyhow!("browser session factory not implemented"))
+    }
+}
+
+fn browser_close_error(error: crate::tool::browser::error::BrowserToolError) -> anyhow::Error {
+    anyhow!(
+        "browser session close failed (code: {}): {}",
+        error.code,
+        error.message
+    )
+}
+
+pub async fn run_with_browser_scope<F, T>(
+    factory: Arc<dyn BrowserDriverFactory>,
+    future: F,
+) -> anyhow::Result<T>
+where
+    F: Future<Output = anyhow::Result<T>>,
+{
+    let scope = Arc::new(BrowserScope::new(factory));
+    let result = BROWSER_SCOPE.scope(scope.clone(), future).await;
+    close_scope(scope).await?;
+    result
+}
+
+pub async fn run_with_default_browser_scope<F, T>(future: F) -> anyhow::Result<T>
+where
+    F: Future<Output = anyhow::Result<T>>,
+{
+    run_with_browser_scope(Arc::new(UnavailableBrowserDriverFactory), future).await
+}
+
+pub async fn with_browser_session<F, Fut, T>(operation: F) -> anyhow::Result<T>
+where
+    F: FnOnce(Arc<BrowserSession>) -> Fut,
+    Fut: Future<Output = anyhow::Result<T>>,
+{
+    let scope = current_scope()?;
+    let session = scope.get_or_create_session().await?;
+    operation(session).await
+}
+
+fn current_scope() -> anyhow::Result<Arc<BrowserScope>> {
+    BROWSER_SCOPE
+        .try_with(|scope| scope.clone())
+        .map_err(|_| anyhow!("browser scope unavailable"))
+}
+
+async fn close_scope(scope: Arc<BrowserScope>) -> anyhow::Result<()> {
+    scope.close().await
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::{BrowserDriverFactory, run_with_browser_scope, with_browser_session};
+    use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
+    use crate::tool::browser::error::{BrowserToolResult, BrowserToolUnitResult};
+    use std::sync::Arc;
+
+    #[derive(Default)]
+    struct FakeDriverFactory {
+        create_count: Arc<AtomicUsize>,
+        close_count: Arc<AtomicUsize>,
+    }
+
+    impl FakeDriverFactory {
+        fn create_count(&self) -> usize {
+            self.create_count.load(Ordering::SeqCst)
+        }
+
+        fn close_count(&self) -> usize {
+            self.close_count.load(Ordering::SeqCst)
+        }
+    }
+
+    struct FakeDriver {
+        close_count: Arc<AtomicUsize>,
+    }
+
+    #[async_trait::async_trait]
+    impl BrowserDriver for FakeDriver {
+        async fn navigate(&mut self, _url: &str) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn snapshot(&mut self) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn click(&mut self, _element_id: &str) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn fill(&mut self, _element_id: &str, _value: &str) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn scroll(&mut self, _request: ScrollRequest) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn wait_text(&mut self, _text: &str, _timeout_ms: Option<u64>) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
+            Ok(serde_json::json!({}))
+        }
+
+        async fn close(&mut self) -> BrowserToolUnitResult {
+            self.close_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl BrowserDriverFactory for FakeDriverFactory {
+        async fn create(&self) -> anyhow::Result<Box<dyn BrowserDriver>> {
+            self.create_count.fetch_add(1, Ordering::SeqCst);
+            Ok(Box::new(FakeDriver {
+                close_count: self.close_count.clone(),
+            }))
+        }
+    }
+
+    #[tokio::test]
+    async fn browser_scope_creates_one_session_per_execute() {
+        let factory = Arc::new(FakeDriverFactory::default());
+
+        run_with_browser_scope(factory.clone(), async {
+            with_browser_session(|_| async { Ok(()) }).await.unwrap();
+            with_browser_session(|_| async { Ok(()) }).await.unwrap();
+            Ok::<_, anyhow::Error>(())
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(factory.create_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn browser_scope_closes_session_on_exit() {
+        let factory = Arc::new(FakeDriverFactory::default());
+
+        run_with_browser_scope(factory.clone(), async {
+            with_browser_session(|_| async { Ok(()) }).await.unwrap();
+            Ok::<_, anyhow::Error>(())
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(factory.close_count(), 1);
+    }
+}
