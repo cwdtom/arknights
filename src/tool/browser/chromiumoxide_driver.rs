@@ -1,5 +1,5 @@
 use crate::tool::browser::chromiumoxide_runtime::{self, ChromiumoxideRuntime};
-use crate::tool::browser::driver::{BrowserDriver, ScrollRequest};
+use crate::tool::browser::driver::{BrowserDriver, ScrollDirection, ScrollRequest};
 use crate::tool::browser::error::{BrowserToolError, BrowserToolResult, BrowserToolUnitResult};
 use crate::tool::browser::snapshot_js::SNAPSHOT_JS;
 use anyhow::anyhow;
@@ -154,6 +154,21 @@ impl BrowserDriver for ChromiumoxideBrowserDriver {
 
     async fn scroll(&mut self, request: ScrollRequest) -> BrowserToolResult {
         match request {
+            ScrollRequest::Direction { direction, pages } => {
+                let delta = match direction {
+                    ScrollDirection::Up => -1_i64,
+                    ScrollDirection::Down => 1_i64,
+                } * i64::from(pages);
+                self.page
+                    .evaluate_function(format!(
+                        "() => {{ window.scrollBy(0, window.innerHeight * {delta}); return true; }}"
+                    ))
+                    .await
+                    .map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))?;
+                Ok(
+                    json!({ "direction": if matches!(direction, ScrollDirection::Up) { "up" } else { "down" }, "pages": pages, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))? }),
+                )
+            }
             ScrollRequest::Element { element_id } => {
                 chromiumoxide_runtime::find_element(&self.page, &element_id, "scroll_failed")
                     .await?
@@ -162,17 +177,6 @@ impl BrowserDriver for ChromiumoxideBrowserDriver {
                     .map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))?;
                 Ok(
                     json!({ "element_id": element_id, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))? }),
-                )
-            }
-            ScrollRequest::DeltaY { delta_y } => {
-                self.page
-                    .evaluate_function(format!(
-                        "() => {{ window.scrollBy(0, {delta_y}); return true; }}"
-                    ))
-                    .await
-                    .map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))?;
-                Ok(
-                    json!({ "delta_y": delta_y, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("scroll_failed", err))? }),
                 )
             }
         }

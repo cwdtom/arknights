@@ -1,9 +1,20 @@
 use crate::tool::browser::error::{BrowserToolResult, BrowserToolUnitResult};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollDirection {
+    Up,
+    Down,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScrollRequest {
-    Element { element_id: String },
-    DeltaY { delta_y: i64 },
+    Direction {
+        direction: ScrollDirection,
+        pages: u32,
+    },
+    Element {
+        element_id: String,
+    },
 }
 
 #[async_trait::async_trait]
@@ -22,7 +33,7 @@ pub trait BrowserDriver: Send {
 
 #[cfg(test)]
 mod tests {
-    use super::{BrowserDriver, ScrollRequest};
+    use super::{BrowserDriver, ScrollDirection, ScrollRequest};
     use crate::tool::browser::error::{
         BrowserToolError, BrowserToolResult, BrowserToolUnitResult, browser_tool_error_json,
     };
@@ -91,10 +102,19 @@ mod tests {
     }
 
     #[test]
-    fn scroll_request_delta_y_keeps_signed_offset() {
-        let request = ScrollRequest::DeltaY { delta_y: -480 };
+    fn scroll_request_direction_keeps_explicit_fields() {
+        let request = ScrollRequest::Direction {
+            direction: ScrollDirection::Down,
+            pages: 2,
+        };
 
-        assert_eq!(request, ScrollRequest::DeltaY { delta_y: -480 });
+        assert_eq!(
+            request,
+            ScrollRequest::Direction {
+                direction: ScrollDirection::Down,
+                pages: 2,
+            }
+        );
     }
 
     #[tokio::test]

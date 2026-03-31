@@ -101,8 +101,17 @@ async fn chromiumoxide_smoke_flow() {
         let second_snapshot = parse(&SnapshotTool::new(), json!({})).await;
         let finish_id = find_id(&second_snapshot["result"]["elements"], "Finish");
 
-        let scroll = parse(&ScrollTool::new(), json!({ "element_id": finish_id })).await;
+        let scroll = parse(
+            &ScrollTool::new(),
+            json!({ "direction": "down", "pages": 1 }),
+        )
+        .await;
         assert_eq!(scroll["ok"], true);
+        assert_eq!(scroll["result"]["direction"], "down");
+        assert_eq!(scroll["result"]["pages"], 1);
+
+        let third_snapshot = parse(&SnapshotTool::new(), json!({})).await;
+        assert!(third_snapshot["result"]["scroll_y"].as_i64().unwrap() > 0);
 
         let text = parse(&GetTextTool::new(), json!({})).await;
         assert!(
