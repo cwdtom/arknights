@@ -210,10 +210,6 @@ mod tests {
             Ok(serde_json::json!({}))
         }
 
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            Ok(serde_json::json!({}))
-        }
-
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             Ok(serde_json::json!({}))
         }
@@ -276,10 +272,6 @@ mod tests {
         }
 
         async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            Ok(serde_json::json!({}))
-        }
-
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             Ok(serde_json::json!({}))
         }
 

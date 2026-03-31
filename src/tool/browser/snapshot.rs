@@ -109,10 +109,6 @@ mod tests {
             panic!("unexpected get_text call")
         }
 
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_text call")
-        }
-
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             panic!("unexpected screenshot call")
         }

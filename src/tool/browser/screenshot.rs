@@ -115,10 +115,6 @@ mod tests {
             panic!("unexpected get_text call")
         }
 
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_text call")
-        }
-
         async fn screenshot(&mut self, element_id: Option<&str>) -> BrowserToolResult {
             *self.last_element_id.lock().expect("lock poisoned") =
                 Some(element_id.map(ToString::to_string));
@@ -164,10 +160,6 @@ mod tests {
         }
 
         async fn get_text(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_text call")
-        }
-
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             panic!("unexpected get_text call")
         }
 

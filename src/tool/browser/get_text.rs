@@ -120,10 +120,6 @@ mod tests {
             Ok(serde_json::json!({ "element_id": element_id, "text": "example" }))
         }
 
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_html call")
-        }
-
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
             panic!("unexpected screenshot call")
         }
@@ -166,10 +162,6 @@ mod tests {
                 "element_not_found",
                 "element does not exist",
             ))
-        }
-
-        async fn get_html(&mut self, _element_id: Option<&str>) -> BrowserToolResult {
-            panic!("unexpected get_html call")
         }
 
         async fn screenshot(&mut self, _element_id: Option<&str>) -> BrowserToolResult {

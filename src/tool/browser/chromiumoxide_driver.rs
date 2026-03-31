@@ -207,25 +207,6 @@ impl BrowserDriver for ChromiumoxideBrowserDriver {
         )
     }
 
-    async fn get_html(&mut self, element_id: Option<&str>) -> BrowserToolResult {
-        let html = match element_id {
-            Some(id) => chromiumoxide_runtime::find_element(&self.page, id, "get_html_failed")
-                .await?
-                .outer_html()
-                .await
-                .map_err(|err| chromiumoxide_runtime::op_error("get_html_failed", err))?
-                .unwrap_or_default(),
-            None => self
-                .page
-                .content()
-                .await
-                .map_err(|err| chromiumoxide_runtime::op_error("get_html_failed", err))?,
-        };
-        Ok(
-            json!({ "element_id": element_id, "html": html, "page": self.page_meta().await.map_err(|err| chromiumoxide_runtime::op_error("get_html_failed", err))? }),
-        )
-    }
-
     async fn screenshot(&mut self, element_id: Option<&str>) -> BrowserToolResult {
         let path = self.next_screenshot_path().await?;
         let params = ScreenshotParams::builder()
