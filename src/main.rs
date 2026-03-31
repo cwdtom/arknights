@@ -10,6 +10,7 @@ pub mod im;
 pub mod kv;
 pub mod llm;
 pub mod memory;
+pub mod schedule;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod timer;
