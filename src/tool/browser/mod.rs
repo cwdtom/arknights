@@ -57,10 +57,6 @@ pub(crate) fn browser_schema(base_tool: &BaseTool, params: Value, required: &[&s
     }
 }
 
-pub(crate) fn placeholder_response(base_tool: &BaseTool) -> String {
-    format!("Error: {} not implemented yet.", base_tool.name)
-}
-
 pub(crate) fn invalid_arguments(err: impl std::fmt::Display) -> String {
     format!("Error: invalid arguments: {err}")
 }
