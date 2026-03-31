@@ -2,6 +2,7 @@ use super::*;
 use crate::llm::base_llm::{FunctionCall, ToolCall};
 use crate::test_support;
 use crate::tool::base_tool::LlmTool;
+use chrono::{Local, SecondsFormat};
 use uuid::Uuid;
 
 #[test]
@@ -130,7 +131,11 @@ async fn update_tool_rejects_end_time_before_start_time() {
         .deep_seek_call(&tool_call("schedule_get", &format!(r#"{{"id":"{id}"}}"#)))
         .await;
     let fetched: serde_json::Value = serde_json::from_str(&fetched).unwrap();
-    assert_eq!(fetched["start_time"], "2026-04-01T06:00:00.000Z");
+    let expected_start = chrono::DateTime::parse_from_rfc3339("2026-04-01T14:00:00+08:00")
+        .unwrap()
+        .with_timezone(&Local)
+        .to_rfc3339_opts(SecondsFormat::Millis, false);
+    assert_eq!(fetched["start_time"], expected_start);
 
     let removed = remove
         .deep_seek_call(&tool_call(
@@ -167,8 +172,16 @@ async fn list_tool_supports_mixed_timezones_and_returns_normalized_times() {
     let listed: serde_json::Value = serde_json::from_str(&listed).unwrap();
     let listed = listed.as_array().unwrap();
     let item = listed.iter().find(|item| item["id"] == id).unwrap();
-    assert_eq!(item["start_time"], "2026-04-01T17:30:00.000Z");
-    assert_eq!(item["end_time"], "2026-04-01T18:30:00.000Z");
+    let expected_start = chrono::DateTime::parse_from_rfc3339("2026-04-02T01:30:00+08:00")
+        .unwrap()
+        .with_timezone(&Local)
+        .to_rfc3339_opts(SecondsFormat::Millis, false);
+    let expected_end = chrono::DateTime::parse_from_rfc3339("2026-04-02T02:30:00+08:00")
+        .unwrap()
+        .with_timezone(&Local)
+        .to_rfc3339_opts(SecondsFormat::Millis, false);
+    assert_eq!(item["start_time"], expected_start);
+    assert_eq!(item["end_time"], expected_end);
 
     let removed = remove
         .deep_seek_call(&tool_call(

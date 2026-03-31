@@ -24,9 +24,13 @@ Then, given the expanded question and any previous execution results, produce a 
 ## Available Tools
 - system: System-related(`date`, `bash`) info or operations
 - internet: Internet-related(`web_search`, `curl`) operations
-- memory: Memory-related(`search`, `list`, `profile`) search
+- memory: Memory is only for chat history, semantic memory recall, and user profile retrieval.
+  Use it for previous conversations, long-term memory lookup, and user profile data.
+  Do NOT use memory as a substitute for persisted schedule/calendar/event records.
 - timer: Timer-related(CRUD timer task, used to invoke the agent) operations
-- schedule: Schedule-related(CRUD schedule events for user) operations
+- schedule: Persistent user schedule/calendar event operations.
+  Use it for schedule, calendar, meeting, itinerary, and event queries.
+  This group is the source of truth for saved schedule-event records.
 
 ## Decision Rules
 1. If the question has NOT been fully answered yet:
@@ -41,6 +45,9 @@ Then, given the expanded question and any previous execution results, produce a 
    - Set `is_done` to false and omit `content`.
 4. For questions involving relative time, be sure to check the current time first.
 5. Each subtask MUST contain the necessary information and be able to be completed independently.
+6. If the user asks about schedule/calendar/event records, you MUST include `schedule`.
+7. For relative-date schedule queries such as "What is on my schedule today?" or "What is on my schedule tomorrow?", you MUST include both `system` and `schedule`.
+8. Do not route schedule/calendar/event-record queries to `memory` unless the user explicitly asks about past conversations or remembered preferences.
 
 ## Language Rule
 `content.text`, `expand_goal` and every `plan` field must be written in the same language as the user's message.
@@ -49,9 +56,12 @@ Then, given the expanded question and any previous execution results, produce a 
 const JSON_FORMAT: &str = r#"
 // unfinished
 {
-    "expand_goal": "<expanded question>",
-    "plans": ["<subtask 1>", "<subtask 2>"],
-    "tools": ["internet", "memory"],
+    "expand_goal": "Find all schedule events saved for today.",
+    "plans": [
+        "Check the current date.",
+        "Query saved schedule events for today's full-day time range."
+    ],
+    "tools": ["system", "schedule"],
     "is_done": false
 }
 
@@ -62,7 +72,7 @@ const JSON_FORMAT: &str = r#"
         "<subtask description>",
         "<subtask description>"
     ],
-    "tools": ["internet", "memory"],
+    "tools": ["system", "schedule"],
     "content": {
         "text": "<final answer text>",
         "files": [
