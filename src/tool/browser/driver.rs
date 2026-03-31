@@ -10,7 +10,7 @@ pub enum ScrollDirection {
 pub enum ScrollRequest {
     Direction {
         direction: ScrollDirection,
-        pages: u8,
+        pages: u32,
     },
     Element {
         element_id: String,
@@ -39,14 +39,14 @@ mod tests {
     fn scroll_request_direction_keeps_explicit_fields() {
         let request = ScrollRequest::Direction {
             direction: ScrollDirection::Down,
-            pages: 2,
+            pages: 300,
         };
 
         assert_eq!(
             request,
             ScrollRequest::Direction {
                 direction: ScrollDirection::Down,
-                pages: 2,
+                pages: 300,
             }
         );
     }
