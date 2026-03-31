@@ -11,6 +11,7 @@ You are the "think" node in a ReAct loop.
 Primary rule:
 - Using appropriate tools to solve problems.
 - When information is missing, be sure to use the memory tool to search for an answer once before calling ask_user.
+- Browser tools are stateful within the current ReAct execution and share one page session, so call browser_snapshot before any element_id-based action and call browser_snapshot again after navigation or any stale element error before continuing.
 
 Output contract:
 - Keep the tool args language as same as the user's message.
@@ -59,6 +60,10 @@ impl ReAct {
     }
 
     pub async fn execute(&mut self) -> anyhow::Result<ReActResp> {
+        tool::browser::run_with_default_browser_scope(async { self.execute_loop().await }).await
+    }
+
+    async fn execute_loop(&mut self) -> anyhow::Result<ReActResp> {
         for _ in 1..=MAX_TURNS {
             // THINK
             let choice = self.think().await?;
@@ -183,6 +188,12 @@ mod tests {
         let resp: ReActResp = serde_json::from_str(json).unwrap();
         assert!(resp.needs_replan);
         assert!(!resp.is_done);
+    }
+
+    #[test]
+    fn think_prompt_mentions_browser_snapshot_rule() {
+        assert!(THINK_PROMPT.contains("Browser tools are stateful"));
+        assert!(THINK_PROMPT.contains("browser_snapshot"));
     }
 
     #[tokio::test]

@@ -56,6 +56,11 @@ fn build_system_prompt_includes_user_profile_section() {
 }
 
 #[test]
+fn plan_prompt_mentions_browser_tool_group() {
+    assert!(PLAN_PROMPT.contains("browser"));
+}
+
+#[test]
 fn build_system_prompt_distinguishes_schedule_from_memory() {
     let prompt = build_system_prompt("prefers concise answers");
 
