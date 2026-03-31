@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Serialize)]
@@ -6,6 +6,24 @@ pub struct BrowserErrorBody<'a> {
     pub code: &'a str,
     pub message: &'a str,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BrowserToolError {
+    pub code: String,
+    pub message: String,
+}
+
+impl BrowserToolError {
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+}
+
+pub type BrowserToolResult = Result<Value, BrowserToolError>;
+pub type BrowserToolUnitResult = Result<(), BrowserToolError>;
 
 pub fn browser_error_json(code: &str, message: &str) -> String {
     serde_json::json!({
@@ -23,9 +41,23 @@ pub fn browser_ok_json(result: Value) -> String {
     .to_string()
 }
 
+pub fn browser_tool_error_json(error: &BrowserToolError) -> String {
+    browser_error_json(&error.code, &error.message)
+}
+
+pub fn browser_tool_result_json(result: BrowserToolResult) -> String {
+    match result {
+        Ok(value) => browser_ok_json(value),
+        Err(error) => browser_tool_error_json(&error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{browser_error_json, browser_ok_json};
+    use super::{
+        browser_error_json, browser_ok_json, browser_tool_error_json, browser_tool_result_json,
+        BrowserToolError, BrowserToolResult,
+    };
     use serde_json::Value;
 
     #[test]
@@ -44,5 +76,33 @@ mod tests {
 
         assert_eq!(value["ok"], true);
         assert_eq!(value["result"]["url"], "https://example.com");
+    }
+
+    #[test]
+    fn browser_tool_error_json_keeps_stable_shape() {
+        let err = BrowserToolError::new("element_id_stale", "call browser_snapshot again");
+        let raw = browser_tool_error_json(&err);
+        let value: Value = serde_json::from_str(&raw).unwrap();
+
+        assert_eq!(value["ok"], false);
+        assert_eq!(value["error"]["code"], "element_id_stale");
+        assert_eq!(value["error"]["message"], "call browser_snapshot again");
+    }
+
+    #[test]
+    fn browser_tool_result_json_preserves_ok_and_error_shapes() {
+        let ok: BrowserToolResult = Ok(serde_json::json!({ "url": "https://example.com" }));
+        let ok_raw = browser_tool_result_json(ok);
+        let ok_value: Value = serde_json::from_str(&ok_raw).unwrap();
+        assert_eq!(ok_value["ok"], true);
+        assert_eq!(ok_value["result"]["url"], "https://example.com");
+
+        let err: BrowserToolResult =
+            Err(BrowserToolError::new("element_id_stale", "call browser_snapshot again"));
+        let err_raw = browser_tool_result_json(err);
+        let err_value: Value = serde_json::from_str(&err_raw).unwrap();
+        assert_eq!(err_value["ok"], false);
+        assert_eq!(err_value["error"]["code"], "element_id_stale");
+        assert_eq!(err_value["error"]["message"], "call browser_snapshot again");
     }
 }
