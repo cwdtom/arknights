@@ -1,5 +1,7 @@
 use super::*;
+use crate::dao::schedule::models::CREATE_TABLE_SQL;
 use chrono::{DateTime, Local, TimeZone, Utc};
+use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{Duration, sleep};
@@ -84,14 +86,17 @@ async fn schedule_dao_list_by_range_includes_overlapping_event() {
         "sch_overlap",
         "overnight maintenance",
         None,
-        "2026-04-01T23:00:00.000Z",
-        Some("2026-04-02T01:00:00.000Z"),
+        &local_rfc3339(2026, 4, 1, 23, 0, 0),
+        Some(&local_rfc3339(2026, 4, 2, 1, 0, 0)),
     ))
     .await
     .unwrap();
 
     let rows = dao
-        .list_by_range("2026-04-02T00:00:00.000Z", "2026-04-02T23:59:59.000Z")
+        .list_by_range(
+            &local_rfc3339(2026, 4, 2, 0, 0, 0),
+            &local_rfc3339(2026, 4, 2, 23, 59, 59),
+        )
         .await
         .unwrap();
 
@@ -246,6 +251,31 @@ async fn schedule_dao_get_returns_none_for_missing_id() {
     cleanup_db(&path);
 }
 
+#[tokio::test]
+async fn schedule_dao_init_preserves_existing_timestamp_values() {
+    let path = unique_db_path("preserve-existing");
+    seed_raw_event(
+        &path,
+        "sch_existing",
+        "existing row",
+        Some("work"),
+        "2026-04-01T06:00:00.000Z",
+        Some("2026-04-01T07:00:00.000Z"),
+        "2026-03-31T06:54:51.644Z",
+        "2026-03-31T06:54:51.644Z",
+    );
+
+    let dao = ScheduleDao::with_path(&path).unwrap();
+    let row = dao.get("sch_existing").await.unwrap().unwrap();
+
+    assert_eq!(row.start_time, "2026-04-01T06:00:00.000Z");
+    assert_eq!(row.end_time, Some("2026-04-01T07:00:00.000Z".to_string()));
+    assert_eq!(row.created_at, "2026-03-31T06:54:51.644Z");
+    assert_eq!(row.updated_at, "2026-03-31T06:54:51.644Z");
+
+    cleanup_db(&path);
+}
+
 fn build_event(
     id: &str,
     content: &str,
@@ -272,6 +302,27 @@ fn unique_db_path(label: &str) -> PathBuf {
 
 fn cleanup_db(path: &Path) {
     let _ = std::fs::remove_file(path);
+}
+
+fn seed_raw_event(
+    path: &Path,
+    id: &str,
+    content: &str,
+    tag: Option<&str>,
+    start_time: &str,
+    end_time: Option<&str>,
+    created_at: &str,
+    updated_at: &str,
+) {
+    let conn = Connection::open(path).unwrap();
+    conn.execute(CREATE_TABLE_SQL, []).unwrap();
+    conn.execute(
+        "insert into schedule_events
+         (id, content, tag, start_time, end_time, created_at, updated_at)
+         values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        (id, content, tag, start_time, end_time, created_at, updated_at),
+    )
+    .unwrap();
 }
 
 fn local_rfc3339(year: i32, month: u32, day: u32, hour: u32, minute: u32, second: u32) -> String {

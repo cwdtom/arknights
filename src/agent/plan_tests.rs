@@ -55,6 +55,29 @@ fn build_system_prompt_includes_user_profile_section() {
     assert!(prompt.contains("prefers concise answers"));
 }
 
+#[test]
+fn build_system_prompt_distinguishes_schedule_from_memory() {
+    let prompt = build_system_prompt("prefers concise answers");
+
+    assert!(prompt.contains(
+        "Memory is only for chat history, semantic memory recall, and user profile retrieval."
+    ));
+    assert!(prompt.contains(
+        "Do NOT use memory as a substitute for persisted schedule/calendar/event records."
+    ));
+    assert!(prompt.contains("Persistent user schedule/calendar event operations."));
+}
+
+#[test]
+fn build_system_prompt_requires_schedule_for_schedule_queries() {
+    let prompt = build_system_prompt("prefers concise answers");
+
+    assert!(prompt.contains(
+        "For relative-date schedule queries such as \"What is on my schedule today?\" or \"What is on my schedule tomorrow?\", you MUST include both `system` and `schedule`."
+    ));
+    assert!(prompt.contains("\"tools\": [\"system\", \"schedule\"]"));
+}
+
 #[tokio::test]
 async fn execute_persists_latest_expand_goal_after_replan() {
     let _guard = test_support::app_test_guard().await;

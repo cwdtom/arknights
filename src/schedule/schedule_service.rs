@@ -2,7 +2,7 @@ use crate::dao::schedule_dao::{
     NewScheduleEvent, ScheduleDao, ScheduleEvent, UpdateScheduleEvent as DaoUpdateScheduleEvent,
 };
 use anyhow::anyhow;
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, Local, SecondsFormat};
 use std::sync::LazyLock;
 use uuid::Uuid;
 
@@ -135,15 +135,15 @@ fn normalize_list_range(
     })
 }
 
-fn parse_schedule_time(label: &str, value: &str) -> anyhow::Result<DateTime<Utc>> {
+fn parse_schedule_time(label: &str, value: &str) -> anyhow::Result<DateTime<Local>> {
     DateTime::parse_from_rfc3339(value)
-        .map(|time| time.with_timezone(&Utc))
+        .map(|time| time.with_timezone(&Local))
         .map_err(|err| anyhow!("invalid schedule {label}: {err}"))
 }
 
 fn ensure_valid_time_range(
-    start_time: DateTime<Utc>,
-    end_time: DateTime<Utc>,
+    start_time: DateTime<Local>,
+    end_time: DateTime<Local>,
 ) -> anyhow::Result<()> {
     if end_time < start_time {
         return Err(anyhow!(
@@ -154,6 +154,6 @@ fn ensure_valid_time_range(
     Ok(())
 }
 
-fn format_schedule_time(value: DateTime<Utc>) -> String {
-    value.to_rfc3339_opts(SecondsFormat::Millis, true)
+fn format_schedule_time(value: DateTime<Local>) -> String {
+    value.to_rfc3339_opts(SecondsFormat::Millis, false)
 }

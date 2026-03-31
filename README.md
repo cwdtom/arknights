@@ -1,19 +1,28 @@
 # Arknights
 
 Arknights is a Rust 2024 agent service that runs behind a Feishu/Lark bot.
-It receives text messages from Lark, expands and plans work with DeepSeek,
-executes subtasks through a Plan -> ReAct -> Replan pipeline, can also execute
-scheduled timer tasks through the same pipeline, and sends the final answer
-back through Lark.
+It receives text messages from Lark, routes slash commands and ordinary chat
+separately, expands and plans work with DeepSeek, executes subtasks through a
+Plan -> ReAct -> Replan pipeline, can also execute scheduled timer prompts
+through the same pipeline, and sends final text or files back through Lark.
+
+Chat history is stored in SQLite, user profile state and personal rewrite style
+are stored in the local KV store, and chat history can optionally be indexed
+and searched with `sqlite-vec` and `fastembed`.
 
 ## Features
 
 - Plan -> ReAct -> Replan workflow driven by DeepSeek chat completions
-- Feishu/Lark websocket integration for inbound messages and outbound replies
-- Pluggable async tool system for system, internet, process-control, memory, and timer tools
-- SQLite-backed chat history persistence plus KV-backed user profile storage
-- Built-in timer scheduler that replays saved prompts through the agent pipeline
+- Feishu/Lark websocket integration for inbound text, outbound replies, and
+  status emoji updates
+- Slash command support for `/set_personal`
+- Pluggable async tool system for `system`, `internet`, `memory`,
+  `process_control`, `timer`, and `schedule`
+- SQLite-backed chat history, timer tasks, and schedule events
+- KV-backed user profile and personal rewrite style storage
 - Optional RAG indexing and retrieval with `sqlite-vec` and `fastembed`
+- Background timer scheduler that replays saved prompts through the same agent
+  pipeline and can suppress redundant reminder pushes
 
 ## Prerequisites
 
@@ -34,16 +43,17 @@ Copy `.env.example` to `.env` and fill in the values you need.
 | `LARK_USER_OPEN_ID` | Yes | Target Feishu/Lark user for outgoing replies. |
 | `BOCHA_API_KEY` | Recommended | Required when `internet_search` is invoked. |
 | `ARKNIGHTS_DB_PATH` | No | SQLite database path. Defaults to `arknights.db`. |
-| `ARKNIGHTS_RAG_MODEL` | No | Enables async embedding/indexing for saved chat history. Leave empty to disable. |
-| `BASH_TOOL_ENABLE` | No | High-risk switch. Enables `system_bash` and gives the agent read/write access to all files the service process can access. Defaults to `false` when unset. |
+| `ARKNIGHTS_RAG_MODEL` | No | Enables async embedding and vector search for saved chat history. Leave empty to disable. |
+| `BASH_TOOL_ENABLE` | No | High-risk switch. Enables `system_bash` and gives the agent read/write access to all files the service process can access. Defaults to `false`. |
 
 Supported `ARKNIGHTS_RAG_MODEL` values:
 
 - `BAAI/bge-small-en-v1.5`
 - `BAAI/bge-small-zh-v1.5`
 
-When RAG is enabled, embeddings are cached under `models/fastembed`. If no local
-model bundle exists there, `fastembed` may download model files on first use.
+When RAG is enabled, embeddings are cached under `models/fastembed`. If no
+local model bundle exists there, `fastembed` may download model files on first
+use.
 
 ## Getting Started
 
@@ -62,14 +72,25 @@ cargo build
 cargo run
 ```
 
-After the service starts, the process opens the Lark websocket client and the
-background timer loop. Logs are also written to `logs/arknights.log`. Send a
-text message to the configured Feishu/Lark app.
+After the service starts, the process initializes the global IM client, starts
+the background timer loop, and opens the Lark websocket client. Logs are also
+written to `logs/arknights.log`.
 
-## Usage Guide
+## Chat Usage
 
-You can drive the agent entirely through chat. One practical workflow is to ask
-the bot to create a scheduled task that refreshes the user profile for you.
+Regular text messages go through the agent pipeline. Slash commands are handled
+separately before the planner runs.
+
+### Set the personal rewrite style
+
+Send a slash command like this:
+
+```text
+/set_personal Speak like Amiya, but keep every factual detail unchanged.
+```
+
+The stored style is later consumed by `src/agent/personal.rs` to rewrite final
+assistant messages before they are sent back through Lark.
 
 ### Initialize a daily user profile refresh task
 
@@ -87,10 +108,9 @@ Requirements:
 
 What happens next:
 
-- The planner can select `timer`, `memory`, and any other relevant tool groups
-  for this request.
-- The task is persisted through `timer_insert` with a six-field cron expression,
-  where daily 4:00 AM is `0 0 4 * * *`.
+- The planner can select `timer`, `memory`, and any other relevant tool groups.
+- The task is persisted through `timer_insert` with a six-field cron
+  expression, where daily 4:00 AM is `0 0 4 * * *`.
 - Every due run executes the stored prompt through `Plan::new(...).execute()`,
   so the timer uses the same planning and tool-calling pipeline as an ordinary
   chat request.
@@ -98,6 +118,9 @@ What happens next:
   scheduled run can inspect recent chat history and RAG-backed memory results.
 - User profile reads and overwrites map to `memory_get_user_profile` and
   `memory_rewrite_user_profile`.
+
+The planner can also choose the `schedule` tool group to create, list, search,
+update, and remove user schedule events stored in SQLite.
 
 ## Common Commands
 
@@ -108,84 +131,81 @@ cargo test
 cargo clippy
 ```
 
-`cargo test` uses the project's test support to inject temporary defaults for
-the required Lark variables and database path, so it does not require a real
+`cargo test` uses `src/test_support.rs` to inject temporary defaults for the
+required Lark variables and database path, so most tests do not require a real
 DeepSeek or Lark credential set.
 
 ## Architecture
 
 ### Runtime Flow
 
-1. `src/main.rs` loads `.env`, initializes tracing, starts the background timer
-   service, and opens the Lark websocket client.
-2. `src/im/lark.rs` receives text messages, sends status emoji replies, and serializes plan
-   execution with `PLAN_LOCK` while keeping the websocket receive loop responsive.
-3. `src/agent/plan.rs` expands the user goal, prepends recent chat history from SQLite, and
-   either answers directly or emits ordered subtasks with tool groups.
-4. `src/agent/re_act.rs` executes each subtask with the requested tool groups plus default
-   `system`, `process_control`, and `memory` tools.
-5. `process_control_ask_user` can pause execution for a Lark reply, while `done` and `replan`
-   let the ReAct loop either finish a subtask or request a new plan.
-6. `src/timer/timer_service.rs` polls due timer tasks every 10 seconds, executes each saved
-   prompt through `Plan::new(...).execute()`, and records the latest result for future runs.
-7. When the planner reaches a final answer, the response is sent back through Lark and the
-   user/assistant pair is written to chat history.
-8. If `ARKNIGHTS_RAG_MODEL` is configured, chat history is indexed asynchronously into
-   `chat_history_vec` using `sqlite-vec` and `fastembed`.
+1. `src/main.rs` loads `.env`, initializes tracing, initializes the global IM
+   client, starts the background timer service, and reconnects the Lark
+   websocket client on exit.
+2. `src/im/lark.rs` receives text messages, sends status emoji replies, routes
+   `ask_user` replies, handles slash commands, and starts planner tasks behind
+   `PLAN_LOCK` so only one plan pipeline runs at a time.
+3. `src/command/command.rs` handles slash commands such as `/set_personal`,
+   which updates the personal rewrite role stored in KV.
+4. `src/agent/plan.rs` expands the user goal, prepends recent chat history from
+   SQLite plus the stored user profile, and either answers directly or emits
+   ordered subtasks with tool groups.
+5. `src/agent/re_act.rs` executes each subtask with the requested tool groups
+   plus default `system`, `process_control`, and `memory` tools.
+6. `src/timer/timer_service.rs` polls due timer tasks every 10 seconds,
+   executes each saved prompt through `Plan::new(...).execute()`, and records
+   the latest result plus the next trigger time.
+7. Final answers can be filtered by `src/agent/notify_check.rs` for timer runs,
+   rewritten by `src/agent/personal.rs`, and then sent back through Lark
+   together with any generated files.
+8. If `ARKNIGHTS_RAG_MODEL` is configured, chat history is indexed
+   asynchronously into `chat_history_vec` using `sqlite-vec` and `fastembed`.
 
 ### Iteration Limits
 
 - Planner loop: up to 20 turns
 - ReAct loop: up to 20 turns per subtask
 
-## Project Structure
+### Module Structure
 
-```text
-src/
-├── main.rs                    # Service entry point
-├── agent/
-│   ├── plan.rs                # Plan -> ReAct -> Replan orchestration
-│   ├── re_act.rs              # ReAct execution loop
-│   └── mod.rs
-├── dao/
-│   ├── base_dao.rs            # Shared SQLite connection management
-│   ├── chat_history_dao.rs    # Chat history table access
-│   ├── chat_history_vec_dao.rs# sqlite-vec table access
-│   └── mod.rs
-├── im/
-│   ├── lark.rs                # Feishu/Lark websocket and messaging
-│   └── mod.rs
-├── kv/
-│   ├── kv_service.rs          # User profile and personalization KV access
-│   └── mod.rs
-├── llm/
-│   ├── base_llm.rs            # Shared request/response types
-│   ├── deep_seek.rs           # DeepSeek Chat Completions client
-│   └── mod.rs
-├── memory/
-│   ├── chat_history_service.rs# History persistence and retrieval
-│   ├── rag_embedder.rs        # Optional embedding generation
-│   └── mod.rs
-├── timer/
-│   ├── timer_service.rs       # Background scheduler and task execution
-│   └── mod.rs
-├── tool/
-│   ├── base_tool.rs           # `LlmTool` trait
-│   ├── internet.rs            # `internet_search`, `internet_curl`
-│   ├── memory.rs              # Memory search, history, and user profile tools
-│   ├── process_control.rs     # `ask_user`, `done`, `replan`
-│   ├── system/
-│   │   ├── bash.rs            # `system_bash` tool definition
-│   │   ├── bash/runtime.rs    # bash execution, timeout, and cleanup
-│   │   ├── date.rs            # `system_date`
-│   │   ├── mod.rs             # System tool exports
-│   │   └── tests.rs           # System tool tests
-│   ├── timer/                 # `timer_get`, `timer_list`, CRUD timer tools
-│   └── mod.rs                 # Tool registry
-└── util/
-    ├── http_utils.rs          # Shared HTTP client helpers
-    └── mod.rs
-```
+- `src/main.rs` — Service entry point. Initializes tracing, IM, timers, and the
+  reconnecting Lark websocket loop.
+- `src/agent/` — Agent orchestration and response post-processing.
+  - `plan.rs` — Plan -> ReAct -> Replan orchestration.
+  - `re_act.rs` — ReAct execution loop.
+  - `notify_check.rs` — Timer reminder suppression decisions.
+  - `personal.rs` — Final-message style rewriting using stored role text.
+- `src/command/` — Slash command entrypoints such as `/set_personal`.
+- `src/im/` — Feishu/Lark websocket intake, outbound messaging, emoji replies,
+  and `ask_user` coordination.
+- `src/kv/` — KV-backed personalization and user-profile storage.
+- `src/llm/` — Shared LLM request types and the DeepSeek client.
+- `src/memory/` — Chat-history persistence plus optional embedding and vector
+  search via `fastembed`.
+- `src/schedule/` — Schedule-event application service built on top of SQLite.
+- `src/timer/` — Background scheduler that persists timer tasks and executes
+  them through the same planning pipeline.
+- `src/dao/` — SQLite DAOs for chat history, vectors, KV, timers, and
+  schedules.
+  - `timer/` — Timer task persistence.
+  - `schedule/` — Schedule event persistence.
+- `src/tool/` — Pluggable tool system.
+  - `base_tool.rs` — `LlmTool` async trait.
+  - `mod.rs` — Static `TOOL_REGISTRY` mapping tool names to implementations and
+    filtering by tool group.
+  - `internet.rs` — `internet_search` and `internet_curl`.
+  - `memory.rs` — Memory search, recent history listing, and user profile
+    tools.
+  - `process_control.rs` — `process_control_ask_user`,
+    `process_control_done`, and `process_control_replan`.
+  - `system/` — `system_date`, `system_bash`, and bash runtime helpers.
+  - `timer/` — `timer_get`, `timer_list`, `timer_insert`, `timer_update`, and
+    `timer_remove`.
+  - `schedule/` — `schedule_insert`, `schedule_get`, `schedule_list`,
+    `schedule_search`, `schedule_list_by_tag`, `schedule_update`, and
+    `schedule_remove`.
+- `src/util/` — Shared HTTP utilities with 60 second timeouts and explicit HTTP
+  error propagation.
 
 ## Built-in Tools
 
@@ -205,10 +225,17 @@ src/
 - `timer_insert`
 - `timer_update`
 - `timer_remove`
+- `schedule_insert`
+- `schedule_get`
+- `schedule_list`
+- `schedule_search`
+- `schedule_list_by_tag`
+- `schedule_update`
+- `schedule_remove`
 
 ## Extending Tools
 
-1. Add a new file under `src/tool/`.
+1. Add a new implementation under `src/tool/`.
 2. Implement the `LlmTool` trait:
 
 ```rust
@@ -229,7 +256,8 @@ impl LlmTool for MyTool {
 ```
 
 3. Register the tool in `src/tool/mod.rs`.
-4. If the tool belongs to a new group, make sure planner or caller code includes that group.
+4. If the tool belongs to a new group, make sure planner or caller code
+   includes that group.
 
 ## Logging
 
