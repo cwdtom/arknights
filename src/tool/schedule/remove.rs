@@ -12,7 +12,7 @@ pub struct Remove {
 
 #[derive(Deserialize)]
 struct IdArgs {
-    id: String,
+    id: i64,
 }
 
 #[async_trait::async_trait]
@@ -30,7 +30,7 @@ impl LlmTool for Remove {
             &self.base_tool,
             serde_json::json!({
                 "id": {
-                    "type": "string",
+                    "type": "integer",
                     "description": "schedule event id"
                 }
             }),
@@ -44,7 +44,7 @@ impl LlmTool for Remove {
             Err(msg) => return msg,
         };
 
-        match schedule_service::remove(args.id.clone()).await {
+        match schedule_service::remove(args.id).await {
             Ok(()) => serde_json::json!({ "id": args.id, "removed": true }).to_string(),
             Err(err) => format!("Error: remove schedule event: {err}"),
         }

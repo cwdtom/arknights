@@ -1,9 +1,12 @@
 use super::*;
-use crate::llm::base_llm::{FunctionCall, ToolCall};
 use crate::test_support;
 use crate::tool::base_tool::LlmTool;
 use chrono::{Local, SecondsFormat};
-use uuid::Uuid;
+
+#[path = "tool_test_support.rs"]
+mod tool_test_support;
+
+use tool_test_support::tool_call;
 
 #[test]
 fn insert_tool_schema_requires_content_and_start_time() {
@@ -49,6 +52,7 @@ fn update_tool_schema_requires_id_content_start_time() {
     let schema = tool.deep_seek_schema();
 
     assert_eq!(schema.name, "schedule_update");
+    assert_eq!(schema.parameters.properties["id"]["type"], "integer");
     assert_eq!(
         schema.parameters.required,
         vec!["id", "content", "start_time"]
@@ -61,6 +65,7 @@ fn get_tool_schema_requires_id() {
     let schema = tool.deep_seek_schema();
 
     assert_eq!(schema.name, "schedule_get");
+    assert_eq!(schema.parameters.properties["id"]["type"], "integer");
     assert_eq!(schema.parameters.required, vec!["id"]);
 }
 
@@ -70,6 +75,7 @@ fn remove_tool_schema_requires_id() {
     let schema = tool.deep_seek_schema();
 
     assert_eq!(schema.name, "schedule_remove");
+    assert_eq!(schema.parameters.properties["id"]["type"], "integer");
     assert_eq!(schema.parameters.required, vec!["id"]);
 }
 
@@ -114,13 +120,13 @@ async fn update_tool_rejects_end_time_before_start_time() {
         ))
         .await;
     let inserted: serde_json::Value = serde_json::from_str(&inserted).unwrap();
-    let id = inserted["id"].as_str().unwrap();
+    let id = inserted["id"].as_i64().unwrap();
 
     let result = update
         .deep_seek_call(&tool_call(
             "schedule_update",
             &format!(
-                r#"{{"id":"{id}","content":"team meeting","start_time":"2026-04-01T14:00:00+08:00","end_time":"2026-04-01T13:00:00+08:00"}}"#
+                r#"{{"id":{id},"content":"team meeting","start_time":"2026-04-01T14:00:00+08:00","end_time":"2026-04-01T13:00:00+08:00"}}"#
             ),
         ))
         .await;
@@ -128,7 +134,7 @@ async fn update_tool_rejects_end_time_before_start_time() {
     assert!(result.contains("schedule end_time must be greater than or equal to start_time"));
 
     let fetched = get
-        .deep_seek_call(&tool_call("schedule_get", &format!(r#"{{"id":"{id}"}}"#)))
+        .deep_seek_call(&tool_call("schedule_get", &format!(r#"{{"id":{id}}}"#)))
         .await;
     let fetched: serde_json::Value = serde_json::from_str(&fetched).unwrap();
     let expected_start = chrono::DateTime::parse_from_rfc3339("2026-04-01T14:00:00+08:00")
@@ -138,10 +144,7 @@ async fn update_tool_rejects_end_time_before_start_time() {
     assert_eq!(fetched["start_time"], expected_start);
 
     let removed = remove
-        .deep_seek_call(&tool_call(
-            "schedule_remove",
-            &format!(r#"{{"id":"{id}"}}"#),
-        ))
+        .deep_seek_call(&tool_call("schedule_remove", &format!(r#"{{"id":{id}}}"#)))
         .await;
     let removed: serde_json::Value = serde_json::from_str(&removed).unwrap();
     assert_eq!(removed["removed"], true);
@@ -161,7 +164,7 @@ async fn list_tool_supports_mixed_timezones_and_returns_normalized_times() {
         ))
         .await;
     let inserted: serde_json::Value = serde_json::from_str(&inserted).unwrap();
-    let id = inserted["id"].as_str().unwrap();
+    let id = inserted["id"].as_i64().unwrap();
 
     let listed = list
         .deep_seek_call(&tool_call(
@@ -184,10 +187,7 @@ async fn list_tool_supports_mixed_timezones_and_returns_normalized_times() {
     assert_eq!(item["end_time"], expected_end);
 
     let removed = remove
-        .deep_seek_call(&tool_call(
-            "schedule_remove",
-            &format!(r#"{{"id":"{id}"}}"#),
-        ))
+        .deep_seek_call(&tool_call("schedule_remove", &format!(r#"{{"id":{id}}}"#)))
         .await;
     let removed: serde_json::Value = serde_json::from_str(&removed).unwrap();
     assert_eq!(removed["removed"], true);
@@ -205,14 +205,14 @@ async fn schedule_tools_support_full_crud_flow() {
         ))
         .await;
     let inserted: serde_json::Value = serde_json::from_str(&inserted).unwrap();
-    let id = inserted["id"].as_str().unwrap();
-    Uuid::parse_str(id).unwrap();
+    let id = inserted["id"].as_i64().unwrap();
+    assert!(id > 0);
     assert_eq!(inserted["content"], "team meeting");
     assert_eq!(inserted["tag"], "work");
 
     let get = Get::new();
     let fetched = get
-        .deep_seek_call(&tool_call("schedule_get", &format!(r#"{{"id":"{id}"}}"#)))
+        .deep_seek_call(&tool_call("schedule_get", &format!(r#"{{"id":{id}}}"#)))
         .await;
     let fetched: serde_json::Value = serde_json::from_str(&fetched).unwrap();
     assert_eq!(fetched["content"], "team meeting");
@@ -222,7 +222,7 @@ async fn schedule_tools_support_full_crud_flow() {
         .deep_seek_call(&tool_call(
             "schedule_update",
             &format!(
-                r#"{{"id":"{id}","content":"standup","tag":"daily","start_time":"2026-04-01T09:00:00+08:00"}}"#
+                r#"{{"id":{id},"content":"standup","tag":"daily","start_time":"2026-04-01T09:00:00+08:00"}}"#
             ),
         ))
         .await;
@@ -274,27 +274,13 @@ async fn schedule_tools_support_full_crud_flow() {
 
     let remove = Remove::new();
     let removed = remove
-        .deep_seek_call(&tool_call(
-            "schedule_remove",
-            &format!(r#"{{"id":"{id}"}}"#),
-        ))
+        .deep_seek_call(&tool_call("schedule_remove", &format!(r#"{{"id":{id}}}"#)))
         .await;
     let removed: serde_json::Value = serde_json::from_str(&removed).unwrap();
     assert_eq!(removed["removed"], true);
 
     let missing = get
-        .deep_seek_call(&tool_call("schedule_get", &format!(r#"{{"id":"{id}"}}"#)))
+        .deep_seek_call(&tool_call("schedule_get", &format!(r#"{{"id":{id}}}"#)))
         .await;
     assert!(missing.starts_with("Error: schedule event not found:"));
-}
-
-fn tool_call(name: &str, arguments: &str) -> ToolCall {
-    ToolCall {
-        id: format!("call_{name}"),
-        r#type: "function".to_string(),
-        function: FunctionCall {
-            name: name.to_string(),
-            arguments: arguments.to_string(),
-        },
-    }
 }

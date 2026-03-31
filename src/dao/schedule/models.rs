@@ -3,7 +3,7 @@ use serde::Serialize;
 pub(crate) const CREATE_TABLE_SQL: &str = r#"
 create table if not exists schedule_events
 (
-    id         TEXT primary key,
+    id         INTEGER primary key autoincrement,
     content    TEXT not null,
     tag        TEXT,
     start_time TEXT not null,
@@ -15,7 +15,6 @@ create table if not exists schedule_events
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewScheduleEvent {
-    pub id: String,
     pub content: String,
     pub tag: Option<String>,
     pub start_time: String,
@@ -24,7 +23,7 @@ pub struct NewScheduleEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateScheduleEvent {
-    pub id: String,
+    pub id: i64,
     pub content: String,
     pub tag: Option<String>,
     pub start_time: String,
@@ -33,7 +32,7 @@ pub struct UpdateScheduleEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ScheduleEvent {
-    pub id: String,
+    pub id: i64,
     pub content: String,
     pub tag: Option<String>,
     pub start_time: String,

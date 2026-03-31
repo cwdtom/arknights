@@ -12,7 +12,7 @@ pub struct Get {
 
 #[derive(Deserialize)]
 struct IdArgs {
-    id: String,
+    id: i64,
 }
 
 #[async_trait::async_trait]
@@ -30,7 +30,7 @@ impl LlmTool for Get {
             &self.base_tool,
             serde_json::json!({
                 "id": {
-                    "type": "string",
+                    "type": "integer",
                     "description": "schedule event id"
                 }
             }),
@@ -44,7 +44,7 @@ impl LlmTool for Get {
             Err(msg) => return msg,
         };
 
-        match schedule_service::get_by_id(args.id.clone()).await {
+        match schedule_service::get_by_id(args.id).await {
             Ok(Some(event)) => common::to_json(&event, "schedule get"),
             Ok(None) => format!("Error: schedule event not found: {}", args.id),
             Err(err) => format!("Error: get schedule event: {err}"),

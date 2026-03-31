@@ -8,14 +8,13 @@ select id, content, tag, start_time, end_time, created_at, updated_at
 from schedule_events
 ";
 
-pub(crate) fn create_with_conn(conn: &Connection, event: &NewScheduleEvent) -> anyhow::Result<()> {
+pub(crate) fn create_with_conn(conn: &Connection, event: &NewScheduleEvent) -> anyhow::Result<i64> {
     let timestamp = current_timestamp();
     conn.execute(
         "insert into schedule_events
-         (id, content, tag, start_time, end_time, created_at, updated_at)
-         values (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+         (content, tag, start_time, end_time, created_at, updated_at)
+         values (?1, ?2, ?3, ?4, ?5, ?5)",
         params![
-            event.id,
             event.content,
             event.tag,
             event.start_time,
@@ -23,12 +22,12 @@ pub(crate) fn create_with_conn(conn: &Connection, event: &NewScheduleEvent) -> a
             timestamp
         ],
     )
-    .with_context(|| format!("insert schedule event failed: {}", event.id))?;
+    .context("insert schedule event failed")?;
 
-    Ok(())
+    Ok(conn.last_insert_rowid())
 }
 
-pub(crate) fn get_with_conn(conn: &Connection, id: &str) -> anyhow::Result<Option<ScheduleEvent>> {
+pub(crate) fn get_with_conn(conn: &Connection, id: i64) -> anyhow::Result<Option<ScheduleEvent>> {
     conn.query_row(&format!("{SELECT_SQL} where id = ?1"), params![id], map_row)
         .optional()
         .with_context(|| format!("select schedule event failed: {id}"))
@@ -102,7 +101,7 @@ pub(crate) fn update_with_conn(
     Ok(())
 }
 
-pub(crate) fn remove_with_conn(conn: &Connection, id: &str) -> anyhow::Result<()> {
+pub(crate) fn remove_with_conn(conn: &Connection, id: i64) -> anyhow::Result<()> {
     let rows = conn
         .execute("delete from schedule_events where id = ?1", params![id])
         .with_context(|| format!("remove schedule event failed: {id}"))?;
