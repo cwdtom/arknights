@@ -61,12 +61,23 @@ async fn chromiumoxide_smoke_flow() {
         assert_eq!(first_snapshot["result"]["url"], server.url());
         assert_eq!(first_snapshot["result"]["title"], "Browser Smoke");
         assert_eq!(first_snapshot["result"]["scroll_y"], 0);
+        assert!(first_snapshot["result"].get("viewport_width").is_none());
+        assert!(first_snapshot["result"].get("viewport_height").is_none());
         assert!(
             first_snapshot["result"]["document_height"]
                 .as_i64()
                 .unwrap()
                 > 0
         );
+        let input_element = find_element(&first_snapshot["result"]["elements"], "name-input");
+        assert_eq!(input_element["kind"], "input");
+        assert_eq!(input_element["html_id"], "name-input");
+        assert_eq!(input_element["name"], "name-input");
+        assert!(input_element.get("visible").is_none());
+        assert!(input_element.get("placeholder").is_none());
+        let apply_element = find_element(&first_snapshot["result"]["elements"], "Apply");
+        assert_eq!(apply_element["kind"], "button");
+        assert!(apply_element.get("visible").is_none());
         let input_id = find_id(&first_snapshot["result"]["elements"], "name-input");
         let apply_id = find_id(&first_snapshot["result"]["elements"], "Apply");
 
@@ -118,13 +129,19 @@ async fn parse<T: LlmTool>(tool: &T, arguments: Value) -> Value {
     serde_json::from_str(&tool.deep_seek_call(&call).await).unwrap()
 }
 
-fn find_id(elements: &Value, needle: &str) -> String {
+fn find_element<'a>(elements: &'a Value, needle: &str) -> &'a Value {
     elements
         .as_array()
         .unwrap()
         .iter()
         .find(|element| element.to_string().contains(needle))
-        .and_then(|element| element["id"].as_str())
+        .unwrap()
+}
+
+fn find_id(elements: &Value, needle: &str) -> String {
+    find_element(elements, needle)
+        .get("id")
+        .and_then(Value::as_str)
         .unwrap()
         .to_string()
 }
