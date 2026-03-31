@@ -17,12 +17,14 @@ and searched with `sqlite-vec` and `fastembed`.
   status emoji updates
 - Slash command support for `/set_personal`
 - Pluggable async tool system for `system`, `internet`, `memory`,
-  `process_control`, `timer`, and `schedule`
+  `process_control`, `timer`, `schedule`, and `browser`
 - SQLite-backed chat history, timer tasks, and schedule events
 - KV-backed user profile and personal rewrite style storage
 - Optional RAG indexing and retrieval with `sqlite-vec` and `fastembed`
 - Background timer scheduler that replays saved prompts through the same agent
   pipeline and can suppress redundant reminder pushes
+- Stateful browser automation backed by `chromiumoxide`, with one shared page
+  session per ReAct execution when the planner selects the `browser` tool group
 
 ## Prerequisites
 
@@ -30,6 +32,8 @@ and searched with `sqlite-vec` and `fastembed`.
 - A Feishu/Lark app with websocket message delivery enabled
 - A DeepSeek API key
 - A Bocha API key if you want the internet search tools to work
+- A host environment that can launch a Chromium-based browser if you want the
+  `browser_*` tools to run successfully
 
 ## Environment Variables
 
@@ -122,6 +126,19 @@ What happens next:
 The planner can also choose the `schedule` tool group to create, list, search,
 update, and remove user schedule events stored in SQLite.
 
+## Browser Tools
+
+The planner can select the `browser` tool group when a task requires real page
+interaction instead of plain HTTP fetches.
+
+- All `browser_*` calls inside one ReAct execution share a single browser
+  session and page.
+- `browser_snapshot` returns the current page structure and `element_id`
+  values. After navigation or an `element_id_stale` error, the agent must take
+  a fresh snapshot before more element-based actions.
+- `browser_screenshot` writes PNG files under `.cache/browser/<scope-id>/`
+  beneath the repository root and returns the actual saved path.
+
 ## Common Commands
 
 ```bash
@@ -151,7 +168,9 @@ DeepSeek or Lark credential set.
    SQLite plus the stored user profile, and either answers directly or emits
    ordered subtasks with tool groups.
 5. `src/agent/re_act.rs` executes each subtask with the requested tool groups
-   plus default `system`, `process_control`, and `memory` tools.
+   plus default `system`, `process_control`, and `memory` tools. When the
+   `browser` group is present, the whole ReAct execution shares one browser
+   session and page.
 6. `src/timer/timer_service.rs` polls due timer tasks every 10 seconds,
    executes each saved prompt through `Plan::new(...).execute()`, and records
    the latest result plus the next trigger time.
@@ -193,6 +212,9 @@ DeepSeek or Lark credential set.
   - `base_tool.rs` — `LlmTool` async trait.
   - `mod.rs` — Static `TOOL_REGISTRY` mapping tool names to implementations and
     filtering by tool group.
+  - `browser/` — Stateful browser tooling built on `chromiumoxide`, including
+    page navigation, DOM snapshots, element actions, text extraction, waits,
+    scrolling, and screenshots.
   - `internet.rs` — `internet_search` and `internet_curl`.
   - `memory.rs` — Memory search, recent history listing, and user profile
     tools.
@@ -220,6 +242,14 @@ DeepSeek or Lark credential set.
 - `process_control_ask_user`
 - `process_control_done`
 - `process_control_replan`
+- `browser_navigate`
+- `browser_snapshot`
+- `browser_screenshot`
+- `browser_click`
+- `browser_fill`
+- `browser_get_text`
+- `browser_scroll`
+- `browser_wait_text`
 - `timer_get`
 - `timer_list`
 - `timer_insert`
@@ -263,6 +293,8 @@ impl LlmTool for MyTool {
 
 - Console logs are enabled by default.
 - File logs are written to `logs/arknights.log`.
+- Chromiumoxide's noisy invalid websocket-message warning is intentionally
+  suppressed; other browser warnings and errors still surface in logs.
 
 ## License
 
