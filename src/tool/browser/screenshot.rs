@@ -3,17 +3,14 @@ use crate::tool::base_tool::{BaseTool, LlmTool};
 use crate::tool::browser::{browser_schema, new_base_tool, parse_tool_args, run_browser_result};
 use serde::Deserialize;
 use serde_json::json;
-
 pub struct ScreenshotTool {
     pub base_tool: BaseTool,
 }
-
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ScreenshotArgs {
     element_id: Option<String>,
 }
-
 #[async_trait::async_trait]
 impl LlmTool for ScreenshotTool {
     fn group_name(&self) -> &str {
@@ -76,7 +73,7 @@ mod tests {
     struct ScreenshotFactory {
         last_element_id: Arc<Mutex<Option<Option<String>>>>,
     }
-
+    const SCREENSHOT_PATH: &str = "/tmp/ark-browser/shot-001.png";
     struct ScreenshotDriver {
         last_element_id: Arc<Mutex<Option<Option<String>>>>,
     }
@@ -127,7 +124,12 @@ mod tests {
         async fn screenshot(&mut self, element_id: Option<&str>) -> BrowserToolResult {
             *self.last_element_id.lock().expect("lock poisoned") =
                 Some(element_id.map(ToString::to_string));
-            Ok(serde_json::json!({ "element_id": element_id, "image_base64": "ZmFrZQ==" }))
+            Ok(serde_json::json!({
+                "path": SCREENSHOT_PATH,
+                "type": "image/png",
+                "title": "Example",
+                "element_id": element_id
+            }))
         }
 
         async fn close(&mut self) -> BrowserToolUnitResult {
@@ -232,7 +234,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn screenshot_calls_driver_without_element_id() {
+    async fn screenshot_tool_returns_absolute_file_path() {
         let factory = Arc::new(ScreenshotFactory::default());
         let tool = ScreenshotTool::new();
 
@@ -244,8 +246,10 @@ mod tests {
 
         let value: Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(value["ok"], true);
+        assert_eq!(value["result"]["path"], SCREENSHOT_PATH);
+        assert_eq!(value["result"]["type"], "image/png");
+        assert_eq!(value["result"]["title"], "Example");
         assert!(value["result"]["element_id"].is_null());
-        assert_eq!(value["result"]["image_base64"], "ZmFrZQ==");
         assert_eq!(
             *factory.last_element_id.lock().expect("lock poisoned"),
             Some(None)
@@ -268,8 +272,10 @@ mod tests {
 
         let value: Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(value["ok"], true);
+        assert_eq!(value["result"]["path"], SCREENSHOT_PATH);
+        assert_eq!(value["result"]["type"], "image/png");
+        assert_eq!(value["result"]["title"], "Example");
         assert_eq!(value["result"]["element_id"], "node-1");
-        assert_eq!(value["result"]["image_base64"], "ZmFrZQ==");
         assert_eq!(
             *factory.last_element_id.lock().expect("lock poisoned"),
             Some(Some("node-1".to_string()))

@@ -239,7 +239,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn wait_text_calls_driver_and_wraps_result() {
+    async fn wait_text_tool_forwards_timeout_ms() {
         let factory = Arc::new(WaitTextFactory::default());
         let tool = WaitTextTool::new();
 
