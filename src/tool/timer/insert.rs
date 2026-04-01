@@ -46,7 +46,7 @@ impl LlmTool for Insert {
                 },
                 "remaining_runs": {
                     "type": "integer",
-                    "description": "remaining run count, 0 means paused"
+                    "description": "remaining run count, if there is no explicit limit on the number of attempts, assign 40000000."
                 }
             }),
             common::required_task_fields(),
