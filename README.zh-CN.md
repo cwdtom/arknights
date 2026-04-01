@@ -20,7 +20,7 @@ Lark。
 - 基于 KV 的用户画像与个人化改写风格存储
 - 通过 `sqlite-vec` 和 `fastembed` 提供可选的 RAG 建索引与检索能力
 - 后台定时调度器会通过同一套智能体流水线重放已保存的提示词，并可抑制
-  冗余的提醒推送
+  冗余的提醒推送，同时维护 `remaining_runs` 和最近一次执行结果
 - 基于 `chromiumoxide` 的有状态浏览器自动化；当规划器选择 `browser`
   工具组时，每次 ReAct 执行会共享同一个页面会话
 
@@ -73,7 +73,8 @@ cargo run
 ```
 
 服务启动后，进程会初始化全局 IM 客户端、启动后台定时循环，并打开 Lark
-websocket 客户端。日志也会写入 `logs/arknights.log`。
+websocket 客户端。按天滚动的日志也会写入 `logs/` 目录，基础文件名为
+`arknights.log`。
 
 ## 聊天使用方式
 
@@ -116,8 +117,16 @@ websocket 客户端。日志也会写入 `logs/arknights.log`。
 - 用户画像的读取与覆盖写入分别映射到 `memory_get_user_profile` 和
   `memory_rewrite_user_profile`。
 
-规划器还可以选择 `schedule` 工具组，用于创建、列出、搜索、更新和删除
-保存在 SQLite 中的用户日程事件。
+规划器还可以选择 `schedule` 工具组，用于创建、获取、列出、搜索、
+按标签列出、更新和删除保存在 SQLite 中的用户日程事件。
+
+通过 `timer_insert` 或 `timer_update` 创建的定时任务需要提供 `id`、
+`prompt`、`cron_expr` 和 `remaining_runs`。只有 `remaining_runs > 0`
+时任务才会被视为活跃；把它设为 `0` 会暂停任务，但不会删除已保存的
+提示词或执行历史。
+
+`schedule` 工具使用 RFC3339 时间字符串。服务层会把时间规范化为本地时区、
+毫秒精度的时间戳，并拒绝 `end_time` 早于 `start_time` 的输入。
 
 ## 浏览器工具
 
@@ -130,6 +139,9 @@ websocket 客户端。日志也会写入 `logs/arknights.log`。
   元素 ID 的操作。
 - `browser_screenshot` 会把 PNG 文件写入仓库根目录下的
   `.cache/browser/<scope-id>/`，并返回实际保存路径。
+
+返回给用户的文件会通过 Lark 文件上传接口发送。当前实现会在上传前拒绝
+大于 20MB 的文件。
 
 ## 常用命令
 
@@ -159,11 +171,14 @@ cargo clippy
 5. `src/agent/re_act.rs` 用请求的工具组加上默认的 `system`、
    `process_control` 和 `memory` 工具执行每个子任务。当启用 `browser`
    工具组时，整个 ReAct 执行会共享一个浏览器会话与页面。
-6. `src/timer/timer_service.rs` 每 10 秒轮询一次到期的定时任务，通过
-   `Plan::new(...).execute()` 执行每条已保存的提示词，并记录最新结果及下次触发时间。
-7. 最终答案对于定时任务可由 `src/agent/notify_check.rs` 进行过滤，再由
+6. `process_control_ask_user` 可以在普通聊天执行中暂停流程以等待用户通过
+   Lark 回复，超时时间为 5 分钟；定时任务触发的执行不允许向用户追问。
+7. `src/timer/timer_service.rs` 每 10 秒轮询一次到期的定时任务，通过
+   `Plan::new(...).execute()` 执行每条已保存的提示词，递减
+   `remaining_runs`，并记录最新结果及下次触发时间。
+8. 最终答案对于定时任务可由 `src/agent/notify_check.rs` 进行过滤，再由
    `src/agent/personal.rs` 改写，然后连同生成的文件一起发回 Lark。
-8. 如果配置了 `ARKNIGHTS_RAG_MODEL`，聊天历史会通过 `sqlite-vec` 和
+9. 如果配置了 `ARKNIGHTS_RAG_MODEL`，聊天历史会通过 `sqlite-vec` 和
    `fastembed` 异步索引到 `chat_history_vec` 中。
 
 ### 迭代限制
@@ -271,7 +286,7 @@ impl LlmTool for MyTool {
 ## 日志
 
 - 默认启用控制台日志。
-- 文件日志写入 `logs/arknights.log`。
+- 按天滚动的文件日志会写入 `logs/` 目录，基础文件名为 `arknights.log`。
 - `chromiumoxide` 那条噪声较大的 invalid websocket-message warning 会被
   有意抑制；其他浏览器 warning 和 error 仍会出现在日志中。
 

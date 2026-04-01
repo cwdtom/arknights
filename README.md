@@ -22,7 +22,8 @@ and searched with `sqlite-vec` and `fastembed`.
 - KV-backed user profile and personal rewrite style storage
 - Optional RAG indexing and retrieval with `sqlite-vec` and `fastembed`
 - Background timer scheduler that replays saved prompts through the same agent
-  pipeline and can suppress redundant reminder pushes
+  pipeline, tracks `remaining_runs` / latest results, and can suppress
+  redundant reminder pushes
 - Stateful browser automation backed by `chromiumoxide`, with one shared page
   session per ReAct execution when the planner selects the `browser` tool group
 
@@ -77,8 +78,8 @@ cargo run
 ```
 
 After the service starts, the process initializes the global IM client, starts
-the background timer loop, and opens the Lark websocket client. Logs are also
-written to `logs/arknights.log`.
+the background timer loop, and opens the Lark websocket client. Daily-rotated
+logs are also written under `logs/` with the base name `arknights.log`.
 
 ## Chat Usage
 
@@ -123,8 +124,17 @@ What happens next:
 - User profile reads and overwrites map to `memory_get_user_profile` and
   `memory_rewrite_user_profile`.
 
-The planner can also choose the `schedule` tool group to create, list, search,
-update, and remove user schedule events stored in SQLite.
+The planner can also choose the `schedule` tool group to create, get, list,
+search, list-by-tag, update, and remove user schedule events stored in SQLite.
+
+Timer tasks created through `timer_insert` or `timer_update` require `id`,
+`prompt`, `cron_expr`, and `remaining_runs`. A task is considered active only
+when `remaining_runs > 0`; setting it to `0` pauses the task without deleting
+the saved prompt or execution history.
+
+Schedule tool timestamps use RFC3339 strings. The service normalizes them to
+the local timezone with millisecond precision and rejects `end_time` values
+earlier than `start_time`.
 
 ## Browser Tools
 
@@ -138,6 +148,9 @@ interaction instead of plain HTTP fetches.
   a fresh snapshot before more element-based actions.
 - `browser_screenshot` writes PNG files under `.cache/browser/<scope-id>/`
   beneath the repository root and returns the actual saved path.
+
+Files returned to the user are uploaded through the Lark file API. The current
+implementation rejects files larger than 20MB before upload.
 
 ## Common Commands
 
@@ -171,13 +184,16 @@ DeepSeek or Lark credential set.
    plus default `system`, `process_control`, and `memory` tools. When the
    `browser` group is present, the whole ReAct execution shares one browser
    session and page.
-6. `src/timer/timer_service.rs` polls due timer tasks every 10 seconds,
-   executes each saved prompt through `Plan::new(...).execute()`, and records
-   the latest result plus the next trigger time.
-7. Final answers can be filtered by `src/agent/notify_check.rs` for timer runs,
+6. `process_control_ask_user` can pause normal chat execution for a Lark reply
+   with a 5 minute timeout, while timer-triggered runs are not allowed to ask
+   the user.
+7. `src/timer/timer_service.rs` polls due timer tasks every 10 seconds,
+   executes each saved prompt through `Plan::new(...).execute()`, decrements
+   `remaining_runs`, and stores the latest result plus the next trigger time.
+8. Final answers can be filtered by `src/agent/notify_check.rs` for timer runs,
    rewritten by `src/agent/personal.rs`, and then sent back through Lark
    together with any generated files.
-8. If `ARKNIGHTS_RAG_MODEL` is configured, chat history is indexed
+9. If `ARKNIGHTS_RAG_MODEL` is configured, chat history is indexed
    asynchronously into `chat_history_vec` using `sqlite-vec` and `fastembed`.
 
 ### Iteration Limits
@@ -292,7 +308,8 @@ impl LlmTool for MyTool {
 ## Logging
 
 - Console logs are enabled by default.
-- File logs are written to `logs/arknights.log`.
+- Daily-rotated file logs are written under `logs/` with the base name
+  `arknights.log`.
 - Chromiumoxide's noisy invalid websocket-message warning is intentionally
   suppressed; other browser warnings and errors still surface in logs.
 
