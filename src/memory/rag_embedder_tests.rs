@@ -65,15 +65,14 @@ fn build_chat_history_embedding_input_formats_pair() {
 }
 
 #[test]
-fn project_fastembed_cache_dir_is_under_repo_root() {
+fn project_fastembed_cache_dir_is_relative_to_working_directory() {
     let cache_dir = project_fastembed_cache_dir();
-    assert!(cache_dir.ends_with("models/fastembed"));
-    assert!(cache_dir.starts_with(env!("CARGO_MANIFEST_DIR")));
+    assert_eq!(cache_dir, PathBuf::from("models/fastembed"));
 }
 
 #[test]
 fn cargo_toml_uses_ort_load_dynamic_for_fastembed() {
-    let cargo_toml = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));
+    let cargo_toml = include_str!("../../Cargo.toml");
     assert!(cargo_toml.contains("ort-load-dynamic"));
     assert!(!cargo_toml.contains("ort-download-binaries-native-tls"));
 }

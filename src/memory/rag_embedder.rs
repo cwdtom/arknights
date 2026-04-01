@@ -114,7 +114,7 @@ pub fn build_chat_history_embedding_input(user_content: &str, assistant_content:
 }
 
 pub fn project_fastembed_cache_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(PROJECT_FASTEMBED_CACHE_DIR)
+    PathBuf::from(PROJECT_FASTEMBED_CACHE_DIR)
 }
 
 pub(crate) fn default_backend() -> SharedRagEmbeddingBackend {
