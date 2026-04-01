@@ -27,6 +27,19 @@ and searched with `sqlite-vec` and `fastembed`.
 - Stateful browser automation backed by `chromiumoxide`, with one shared page
   session per ReAct execution when the planner selects the `browser` tool group
 
+## Non-open-source Features
+
+The following items describe capabilities reserved for non-open-source
+editions. They are listed here to show the broader product direction, while
+the current open-source repository remains focused on the feature set above.
+
+- `Non-open-source` Support additional LLM providers such as GPT and Claude
+- `Non-open-source` WeChat IM integration
+- `Non-open-source` Cookie-based authenticated access for agent browser sessions
+  on login-required sites such as Zhihu and Bilibili
+- `Non-open-source` Create, download, and execute skills
+- `Non-open-source` Add MCP tools
+
 ## Prerequisites
 
 - A Rust toolchain with edition 2024 support
