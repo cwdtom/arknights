@@ -1,8 +1,35 @@
 use super::*;
+use crate::kv::kv_service;
 use crate::dao::timer_dao::{NewTimerTask, TimerDao};
 use crate::test_support;
 use chrono::{Local, TimeZone};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+#[test]
+fn notify_prompt_distinguishes_recurring_and_update_tasks() {
+    assert!(NOTIFY_CHECK_PROMPT.contains("timer task info"));
+    assert!(NOTIFY_CHECK_PROMPT.contains("recurring reminder task"));
+    assert!(NOTIFY_CHECK_PROMPT.contains("update/report task"));
+    assert!(NOTIFY_CHECK_PROMPT.contains(
+        "similarity to the previous result alone is not enough"
+    ));
+}
+
+#[tokio::test]
+async fn build_system_prompt_includes_user_profile_and_json_format() {
+    let _guard = test_support::app_test_guard().await;
+    let profile = unique_task_id("notify-profile");
+    kv_service::set_user_profile(&profile).await.unwrap();
+
+    let prompt = build_system_prompt().await.unwrap();
+
+    assert!(prompt.contains("## User profile"));
+    assert!(prompt.contains(&profile));
+    assert!(prompt.contains("## Output Format Json"));
+    assert!(prompt.contains(r#""notify": false"#));
+
+    test_support::clear_user_profile().await.unwrap();
+}
 
 #[tokio::test]
 async fn make_notify_choice_returns_true_when_previous_result_is_missing() {

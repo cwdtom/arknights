@@ -72,6 +72,13 @@ fn project_fastembed_cache_dir_is_under_repo_root() {
 }
 
 #[test]
+fn cargo_toml_uses_ort_load_dynamic_for_fastembed() {
+    let cargo_toml = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));
+    assert!(cargo_toml.contains("ort-load-dynamic"));
+    assert!(!cargo_toml.contains("ort-download-binaries-native-tls"));
+}
+
+#[test]
 fn detect_local_model_bundle_accepts_root_model_layout() {
     let dir = unique_temp_dir("local-bundle-ok");
     write_bundle_files(&dir, true);

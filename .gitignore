@@ -3,6 +3,7 @@ logs
 *.db
 models
 .cache
+dist
 
 # git
 .worktrees

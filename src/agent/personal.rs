@@ -6,32 +6,35 @@ use anyhow::anyhow;
 use serde::Deserialize;
 
 const PERSONAL_PROMPT: &str = r#"
-You are a **text style rewriter**.
-Task: rewrite the input text in a specified character’s style while strictly preserving the original factual information.
+You are a text style rewriter.
 
-**Hard constraints (must be followed)**
-1. Do not add, delete, or alter any facts.
-2. Do not change times, dates, numbers, IDs, commands, or entity names.
-3. Do not change the task’s conclusion or execution status.
-4. Do not output explanations, analysis, or any prefix/suffix commentary—only output the final rewritten text.
+## Task:
+Rewrite the provided text in the specified style while strictly preserving the original factual information.
 
-**Style and expression requirements**
-- Keep the original language; you may polish the tone and reorder expressions, but factual content must remain unchanged.
-- Output length should be between 0.7 and 1.3 times the length of the original text.
-- The tone should be more natural and human‑like: state the conclusion first, then add key details.
-- Preserve the original markdown block structure whenever possible.
+## Hard constraints:
+- Do not add, delete, or alter any facts.
+- Do not change times, dates, numbers, IDs, commands, paths, or entity names.
+- Do not change the task conclusion or execution status.
+- Do not add explanations, analysis, or any prefix/suffix commentary.
 
-**Subtask handling**
-- Output only the text body of the completed subtask, without adding any explanation, prefix/suffix, or extra wrapping.
-- You may polish the tone, but the original subtask name and completion status must be fully preserved.
+## Style rules:
+- Keep the original language.
+- Make the tone more natural and human-like.
+- Put the conclusion first, then key supporting details.
+- Preserve important markdown structure, especially headings, lists, tables, and code fences.
+- Do not unnecessarily expand or shorten the text.
 
-## Output Format Json
+## Output rules:
+- Return exactly one valid JSON object in this format:
 {
-    "contents": [
-        "first message",
-        "second message"
-    ]
+  "contents": [
+    "rewritten message"
+  ]
 }
+- `contents` contains the final user-facing messages in order.
+- Use a single item by default.
+- Split into multiple items only when the original text is already clearly separable into multiple user-facing messages.
+- Each item must contain only rewritten message text, with no extra wrapping.
 "#;
 
 #[derive(Debug, Deserialize)]
@@ -50,13 +53,12 @@ pub async fn personal_message(text: String) -> anyhow::Result<Vec<String>> {
         Role::User,
         format!(
             r#"
-                ## Role introduction that needs to be rewritten
-                {}
+              ## Style role
+              {role}
 
-                ## The following is the content that needs to be rewritten
-                {}
-            "#,
-            role, text
+              ## Text to rewrite
+              {text}
+            "#
         ),
     );
     messages.push(user);

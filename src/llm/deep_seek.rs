@@ -39,7 +39,7 @@ fn build_llm_body(messages: Vec<Message>, tools: Vec<Tool>) -> LlmBody {
         response_format: ResponseFormat {
             r#type: resp_format.to_string(),
         },
-        temperature: 1.0,
+        temperature: 0.2,
         tools,
         tool_choice: tool_choice.to_string(),
     }

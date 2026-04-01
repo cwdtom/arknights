@@ -6,75 +6,70 @@ use crate::llm::Role;
 use crate::llm::base_llm::{FunctionCall, Llm, ToolCall};
 use crate::{im, memory, timer};
 use anyhow::anyhow;
-use chrono::Local;
 use rand::distr::{Alphanumeric, SampleString};
 use serde::Deserialize;
 use std::collections::HashSet;
-use tracing::error;
+use tracing::{error, warn};
 
 const MAX_TURNS: u8 = 20;
 const PLAN_PROMPT: &str = r#"
 You are the PLAN or REPLAN node in a Plan-ReAct-Replan pipeline.
 
+## Highest Priority
+- Return ONLY one valid json object.
+
 ## Role
 First, from `user profile` phrase expand user's colloquial question into a complete and unambiguous one.
-Second, select appropriate tools and put them into `tools`.
-Then, given the expanded question and any previous execution results, produce a structured plan that guides downstream ReAct nodes to find the answer.
+Then:
+- If the question is already fully answerable from the current context, return the final answer.
+- Otherwise, select the minimal required tools and produce an ordered plan for downstream ReAct nodes.
 
-## Available Tools
-- system: System-related(`date`, `bash`) info or operations
-- internet: Internet-related(`web_search`, `curl`) operations
-- memory: Memory is only for chat history, semantic memory recall, and user profile retrieval.
-  Use it for previous conversations, long-term memory lookup, and user profile data.
-  Do NOT use memory as a substitute for persisted schedule/calendar/event records.
-- timer: Timer-related(CRUD timer task, used to invoke the agent) operations
-- schedule: Persistent user schedule/calendar event operations.
-  Use it for schedule, calendar, meeting, itinerary, and event queries.
-  This group is the source of truth for saved schedule-event records.
-- browser: Browser-related(`navigate`, `snapshot`, `click`, `fill`, `scroll`, `wait_text`, `get_text`, `screenshot`) operations
+## Tool Boundaries
+- system: Use for current local time or system-level operations.
+- internet: Use for external web search or fetching content from URLs.
+- memory: Use only for chat history, semantic recall, and user profile retrieval. It is not the source of truth for persisted
+schedule/calendar/event records.
+- timer: Use for timer-task CRUD that triggers the agent later. It is not for calendar or schedule-event records.
+- schedule: Use for persisted schedule, calendar, meeting, itinerary, and event records. This is the source of truth for saved
+schedule-event data.
+- browser: Use for interactive webpage navigation, reading, and actions when page state or DOM interaction matters.
 
 ## Decision Rules
-1. If the question has NOT been fully answered yet:
-   - Decompose it into ordered subtasks.
-   - Put the union of required tool groups into `tools`.
-   - Set `is_done` to false and omit `content`.
-2. If the question HAS been fully answered:
-   - Set `is_done` to true.
-   - Write the final answer in `content` with `text` and `files`(no file set empty list).
-3. If the current plan failed or is insufficient:
-   - Reformulate a new plan with alternative subtasks and tools.
-   - Set `is_done` to false and omit `content`.
-4. For questions involving relative time, be sure to check the current time first.
-5. Each subtask MUST contain the necessary information and be able to be completed independently.
-6. If the user asks about schedule/calendar/event records, you MUST include `schedule`.
-7. For relative-date schedule queries such as "What is on my schedule today?" or "What is on my schedule tomorrow?", you MUST include both `system` and `schedule`.
-8. Do not route schedule/calendar/event-record queries to `memory` unless the user explicitly asks about past conversations or remembered preferences.
-9. If the message contains a URL, be sure to include that URL in every subtask.
+- If the question is NOT yet fully answered, set `is_done` to false, omit `content`, produce ordered subtasks, and put the minimal required tool groups into `tools`.
+- If previous execution was insufficient, still set `is_done` to false and produce a better plan instead of repeating the failed route.
+- If the question HAS been fully answered:
+  - Set `is_done` to true.
+  - Write the final answer in `content` with `text` and `files` (use an empty list if there are no files).
+- Each subtask must be directly executable for its step, include all critical external inputs not already available from the user
+  message or prior subtask outputs, and state the expected result clearly. Subtasks may depend on outputs from earlier subtasks in the same plan.
+- Do not guess a concrete current date or time, use `system` tool get system datetime.
+- For relative-time questions, include `system` when downstream execution must verify or compute current or relative time.
+- For relative-date schedule queries such as "What is on my schedule today?" or "What is on my schedule tomorrow?", you MUST include
+both `system` and `schedule`.
+- If the message contains a URL, be sure to include that URL in every subtask.
+- For schedule, calendar, meeting, itinerary, or event-record queries, you MUST include `schedule`.
+- Do not route schedule/calendar/event-record queries to `memory` unless the user explicitly asks about past conversations or
+  remembered preferences.
 
 ## Language Rule
 `content.text`, `expand_goal` and every `plan` field must be written in the same language as the user's message.
 "#;
 
 const JSON_FORMAT: &str = r#"
-// unfinished
-{
-    "expand_goal": "Find all schedule events saved for today.",
-    "plans": [
-        "Check the current date.",
-        "Query saved schedule events for today's full-day time range."
-    ],
-    "tools": ["system", "schedule"],
-    "is_done": false
-}
-
-// finished
 {
     "expand_goal": "<expanded question>",
     "plans": [
-        "<subtask description>",
-        "<subtask description>"
+        "<sub task 1>",
+        "<sub task 2>"
     ],
-    "tools": ["system", "schedule"],
+    "tools": ["system", "schedule", "tool 3"],
+    "is_done": false
+}
+
+{
+    "expand_goal": "<expanded question>",
+    "plans": [],
+    "tools": [],
     "content": {
         "text": "<final answer text>",
         "files": [
@@ -136,8 +131,7 @@ impl Plan {
         messages.extend(history);
 
         // make user message
-        let now = Local::now().to_rfc3339();
-        let user = Message::new(Role::User, format!("[{now}] {user_message}"));
+        let user = Message::new(Role::User, user_message.clone());
         messages.push(user);
 
         // make plan
@@ -145,7 +139,24 @@ impl Plan {
         let chat_resp = llm.call().await?;
         match chat_resp.choices.first() {
             Some(choice) => {
-                let plan_resp: PlanResp = serde_json::from_str(&choice.message.content)?;
+                let plan_resp: PlanResp = match serde_json::from_str(&choice.message.content) {
+                    Ok(resp) => resp,
+                    Err(err) => {
+                        error!("plan response parse error: {}", err);
+                        // It is highly likely that the JSON format was not followed,
+                        // and the response was given directly.
+                        return Ok(Plan {
+                            question: user_message,
+                            plans: vec![],
+                            tools: HashSet::new(),
+                            llm,
+                            answer: Some(Content {
+                                text: choice.message.content.clone(),
+                                files: Vec::new(),
+                            }),
+                        });
+                    }
+                };
                 llm.push_message(choice.message.clone());
 
                 // plan already answer
@@ -247,7 +258,7 @@ fn build_system_prompt(user_profile: &str) -> String {
             ## User profile
             {}
 
-            ## Output Format Json
+            ## Output Format json
             {}
             "#,
         PLAN_PROMPT, user_profile, JSON_FORMAT
@@ -281,7 +292,7 @@ async fn send_final_answer(question: String, content: Content) -> anyhow::Result
             Ok(cs.join("\n"))
         }
         Err(err) => {
-            error!("Failed to personalize message: {}", err);
+            warn!("Failed to personalize message: {}", err);
             im::base_im::async_send_text(content.text.clone());
             im::base_im::async_send_files(content.files.clone());
             Ok(content.text)

@@ -58,7 +58,9 @@ fn build_system_prompt_includes_user_profile_section() {
 #[test]
 fn plan_prompt_mentions_browser_tool_group() {
     assert!(PLAN_PROMPT.contains("browser"));
-    assert!(PLAN_PROMPT.contains("get_text"));
+    assert!(PLAN_PROMPT.contains(
+        "interactive webpage navigation, reading, and actions"
+    ));
     assert!(!PLAN_PROMPT.contains("get_html"));
     assert!(!PLAN_PROMPT.contains("close"));
 }
@@ -68,12 +70,15 @@ fn build_system_prompt_distinguishes_schedule_from_memory() {
     let prompt = build_system_prompt("prefers concise answers");
 
     assert!(prompt.contains(
-        "Memory is only for chat history, semantic memory recall, and user profile retrieval."
+        "memory: Use only for chat history, semantic recall, and user profile retrieval."
     ));
     assert!(prompt.contains(
-        "Do NOT use memory as a substitute for persisted schedule/calendar/event records."
+        "It is not the source of truth for persisted"
     ));
-    assert!(prompt.contains("Persistent user schedule/calendar event operations."));
+    assert!(prompt.contains("schedule/calendar/event records."));
+    assert!(prompt.contains(
+        "schedule: Use for persisted schedule, calendar, meeting, itinerary, and event records."
+    ));
 }
 
 #[test]
@@ -81,9 +86,24 @@ fn build_system_prompt_requires_schedule_for_schedule_queries() {
     let prompt = build_system_prompt("prefers concise answers");
 
     assert!(prompt.contains(
-        "For relative-date schedule queries such as \"What is on my schedule today?\" or \"What is on my schedule tomorrow?\", you MUST include both `system` and `schedule`."
+        "For schedule, calendar, meeting, itinerary, or event-record queries, you MUST include `schedule`."
     ));
+    assert!(prompt.contains(
+        "For relative-date schedule queries such as \"What is on my schedule today?\" or \"What is on my schedule tomorrow?\", you MUST include"
+    ));
+    assert!(prompt.contains("both `system` and `schedule`."));
     assert!(prompt.contains("\"tools\": [\"system\", \"schedule\"]"));
+}
+
+#[test]
+fn build_system_prompt_requires_system_lookup_when_current_time_is_not_supplied() {
+    let prompt = build_system_prompt("prefers concise answers");
+
+    assert!(prompt.contains("Current local time is NOT pre-supplied in the user message."));
+    assert!(prompt.contains("Do not guess a concrete current date or time."));
+    assert!(prompt.contains(
+        "include `system` when downstream execution must verify or compute current or relative time."
+    ));
 }
 
 #[tokio::test]
