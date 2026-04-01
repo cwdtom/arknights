@@ -13,12 +13,11 @@
     .topbar .wrap,.hero,.flow,.build-grid,.footer{display:grid;gap:24px}.topbar .wrap{grid-template-columns:auto 1fr auto;align-items:center;padding:14px 0}.brand{display:flex;align-items:center;gap:12px;font-weight:700;letter-spacing:.04em}.mark{width:12px;height:12px;border-radius:999px;background:linear-gradient(135deg,var(--warm),var(--warm2));box-shadow:0 0 26px rgba(255,142,99,.6)}
     nav{display:flex;justify-content:center;gap:18px;color:rgba(238,243,247,.72);font-size:13px;text-transform:uppercase;letter-spacing:.12em}.lang-toggle{display:flex;align-items:center;gap:8px}.lang-toggle button{border:1px solid var(--line);background:rgba(255,255,255,.04);color:#eef3f7;border-radius:999px;padding:8px 12px;font:600 12px var(--ui);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:transform .2s ease,background .2s ease,border-color .2s ease}.lang-toggle button[aria-pressed="true"],.lang-toggle button:hover{background:rgba(255,203,132,.12);border-color:rgba(255,203,132,.42);transform:translateY(-1px)}
     .note{color:rgba(238,243,247,.56);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
-    .hero{position:relative;overflow:hidden;min-height:calc(100svh - 72px);align-items:end;padding:42px 0 36px}.hero::before,.hero::after{content:"";position:absolute;border-radius:999px;filter:blur(10px);pointer-events:none}.hero::before{width:420px;height:420px;right:-80px;top:40px;background:radial-gradient(circle,rgba(255,203,132,.92),rgba(255,203,132,.08) 45%,transparent 62%);animation:drift 9s ease-in-out infinite}.hero::after{width:220px;height:220px;left:-40px;top:200px;background:radial-gradient(circle,rgba(140,164,255,.45),transparent 68%);animation:drift 11s ease-in-out infinite reverse}
-    .hero-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.75fr);gap:24px;align-items:end}.eyebrow{margin:0 0 18px;color:var(--warm);font-size:12px;letter-spacing:.16em;text-transform:uppercase}.hero h1{margin:0;font:clamp(68px,11vw,136px)/.88 var(--display);letter-spacing:-.06em}.lede{max-width:34ch;margin:18px 0 0;color:rgba(238,243,247,.82);font-size:18px;line-height:1.7}
+    .hero{min-height:calc(100svh - 72px);padding:18px 0 36px}.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,.72fr);gap:40px;align-content:start;align-items:start}.hero-copy{max-width:760px}.eyebrow{margin:0 0 12px;color:var(--warm);font-size:12px;letter-spacing:.16em;text-transform:uppercase}.hero h1{margin:0;max-width:11ch;font:clamp(46px,7vw,82px)/.96 var(--display);letter-spacing:-.045em;text-wrap:balance}.hero h1 span{display:block}.lede{max-width:34ch;margin:18px 0 0;color:rgba(238,243,247,.82);font-size:18px;line-height:1.7}
+    html[lang="en"] .hero h1{max-width:9.5ch;font-size:clamp(44px,6.3vw,74px);line-height:.98;letter-spacing:-.035em}
     .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}.button{display:inline-flex;align-items:center;justify-content:center;padding:13px 18px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:12px;transition:transform .2s ease,border-color .2s ease,background .2s ease}.button.primary{background:linear-gradient(135deg,var(--warm),var(--warm2));border-color:transparent;color:#11151d}.button.secondary:hover,.button.primary:hover{transform:translateY(-2px)}.button.secondary:hover{background:rgba(255,255,255,.06);border-color:rgba(255,203,132,.42)}
     .trail{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;color:rgba(238,243,247,.62);font-size:12px;letter-spacing:.12em;text-transform:uppercase}.trail span{padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04)}
-    .signal{padding:22px;border-radius:26px;background:rgba(11,17,24,.56);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.signal h2{margin:0 0 12px;font:34px/1.02 var(--display);letter-spacing:-.04em}.signal p{margin:0 0 18px;color:rgba(238,243,247,.76);line-height:1.7}
-    .signal ol{list-style:none;margin:0;padding:0;display:grid;gap:12px}.signal li{display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:start;padding:12px 0;border-top:1px solid rgba(255,255,255,.08)}.signal li:first-child{border-top:none;padding-top:0}.signal strong{display:inline-flex;width:40px;height:40px;border-radius:999px;align-items:center;justify-content:center;background:#eef3f7;color:#11151d;font-size:14px}
+    .hero-side{padding-top:4px;border-left:1px solid rgba(255,255,255,.08);padding-left:28px}.hero-side h2{margin:0 0 16px;font:30px/1.03 var(--display);letter-spacing:-.04em}.hero-facts{display:grid;gap:16px}.hero-fact{padding-top:16px;border-top:1px solid rgba(255,255,255,.08)}.hero-fact:first-child{padding-top:0;border-top:none}.hero-fact strong{display:block;margin-bottom:6px;color:var(--warm);font-size:12px;letter-spacing:.14em;text-transform:uppercase}.hero-fact span{display:block;color:rgba(238,243,247,.76);line-height:1.65}
     .panel{padding:34px 0 0}.panel-alt{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0));padding:30px 0 0}.section-head{display:grid;gap:10px;margin-bottom:22px}.section-head h2{margin:0;font:48px/1 var(--display);letter-spacing:-.05em}.section-head p{margin:0;max-width:48rem;color:rgba(238,243,247,.74);line-height:1.7}
     .flow{grid-template-columns:repeat(3,minmax(0,1fr));padding:18px 0 48px}.flow article{padding:18px 0 22px;border-top:1px solid rgba(255,255,255,.12)}.flow .index{display:block;margin-bottom:10px;color:var(--warm);font-size:12px;letter-spacing:.14em;text-transform:uppercase}.flow h3{margin:0 0 10px;font:31px/1.05 var(--display);letter-spacing:-.04em}.flow p{margin:0;color:rgba(238,243,247,.72);line-height:1.7}
     .feature-ribbon{background:linear-gradient(180deg,var(--paper),var(--paper2));color:var(--ink);border-radius:34px;padding:28px}.feature-ribbon .section-head p{color:var(--muted)}.feature-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:28px}.feature-copy{display:grid;gap:18px}.feature-line{padding:18px 0;border-top:1px solid rgba(16,22,31,.12)}.feature-line:first-child{border-top:none;padding-top:0}.feature-line h3{margin:0 0 8px;font:34px/1.03 var(--display);letter-spacing:-.04em}.feature-line p{margin:0;color:var(--muted);line-height:1.7}
@@ -28,7 +27,7 @@
     .terminal{padding:22px;border-radius:28px;background:linear-gradient(180deg,rgba(255,214,150,.08),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.1)}.terminal .kicker{margin:0 0 12px;color:var(--warm);font-size:12px;letter-spacing:.14em;text-transform:uppercase}.shell{margin:0 0 14px;padding:16px 18px;border-radius:18px;background:#091017;border:1px solid rgba(255,255,255,.06);color:#e8eef7;line-height:1.8;overflow:auto}.hint{margin:0;color:rgba(238,243,247,.68);line-height:1.7}
     .footer{grid-template-columns:1fr auto;padding:26px 0 40px;border-top:1px solid rgba(255,255,255,.1);color:rgba(238,243,247,.66)}.footer-links{display:flex;gap:16px;flex-wrap:wrap;text-transform:uppercase;letter-spacing:.1em;font-size:12px}
     .reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s ease}.reveal.is-visible{opacity:1;transform:none}.hero .reveal{opacity:1;transform:none}.delay-1{transition-delay:.08s}.delay-2{transition-delay:.16s}.delay-3{transition-delay:.24s}
-    @keyframes drift{50%{transform:translate3d(0,18px,0) scale(1.04)}}@media (max-width:980px){.topbar .wrap{grid-template-columns:1fr;justify-items:start}.hero{min-height:auto;padding:30px 0 26px}.hero-grid,.feature-grid,.build-grid,.flow,.footer{grid-template-columns:1fr}.hero h1{font-size:min(24vw,104px)}nav{justify-content:flex-start;flex-wrap:wrap}.signal{order:-1}.feature-ribbon{padding:22px}}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.reveal,.lang-toggle button,.button,.hero::before,.hero::after{transition:none;animation:none}}
+    @media (max-width:980px){.topbar .wrap{grid-template-columns:1fr;justify-items:start}.hero{min-height:auto;padding:14px 0 26px}.hero-grid,.feature-grid,.build-grid,.flow,.footer{grid-template-columns:1fr}.hero h1{max-width:unset;font-size:min(17vw,74px);line-height:.98}.lede{max-width:unset}nav{justify-content:flex-start;flex-wrap:wrap}.hero-side{border-left:none;padding-left:0;padding-top:8px}.feature-ribbon{padding:22px}}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.reveal,.lang-toggle button,.button{transition:none;animation:none}}
   </style>
 </head>
 <body>
@@ -36,8 +35,8 @@
     <div class="wrap">
       <a class="brand" href="#"><span class="mark"></span><span>Arknights</span></a>
       <nav>
-        <a href="#features" data-zh="重点功能" data-en="Key Features"></a>
-        <a href="#deploy" data-zh="编译部署" data-en="Build & Deploy"></a>
+        <a href="#features" data-zh="它能做什么" data-en="What It Does"></a>
+        <a href="#deploy" data-zh="如何开始" data-en="Get Started"></a>
         <a href="README.md">README</a>
       </nav>
       <div class="lang-toggle" aria-label="Language switcher">
@@ -51,42 +50,56 @@
   <main class="wrap">
     <section class="hero">
       <div class="hero-grid">
-        <div class="reveal">
-          <p class="eyebrow" data-zh="面向 Feishu / Lark 的 Rust 智能体服务" data-en="A Rust agent service for Feishu / Lark"></p>
-          <h1>Plan.<br>ReAct.<br>Replan.</h1>
-          <p class="lede" data-zh="Arknights 运行在飞书 / Lark 机器人之后。它把普通聊天、斜杠命令、长期记忆、工具调用和定时任务编排进同一条智能体流水线。" data-en="Arknights runs behind a Feishu / Lark bot. It brings regular chat, slash commands, long-lived memory, tool execution, and scheduled prompts into one agent pipeline."></p>
+        <div class="hero-copy reveal">
+          <p class="eyebrow" data-zh="想把 AI 接进 Feishu / Lark，可以先从这里看起" data-en="If you want AI inside Feishu / Lark, this is a good place to start"></p>
+          <h1 data-rich="true" data-zh="<span>让飞书里的 AI 不只会回话，</span><span>也能把事接着做下去</span>" data-en="<span>AI in Feishu</span><span>that keeps things moving,</span><span>not just talking back</span>"></h1>
+          <p class="lede" data-zh="Arknights 可以在 Feishu / Lark 里收消息、调工具、记住上下文、跑定时任务，再把结果发回到原来的对话里。" data-en="Arknights can take messages inside Feishu / Lark, use tools, remember context, run scheduled tasks, and send the result back to the same conversation."></p>
           <div class="actions">
-            <a class="button primary" href="#features" data-zh="先看功能" data-en="Explore Features"></a>
-            <a class="button secondary" href="#deploy" data-zh="直接看部署" data-en="Go to Deployment"></a>
+            <a class="button primary" href="#features" data-zh="看看它能做什么" data-en="See What It Can Do"></a>
+            <a class="button secondary" href="#deploy" data-zh="自己跑起来" data-en="Run It Yourself"></a>
           </div>
           <div class="trail">
-            <span>Plan -> ReAct -> Replan</span><span>DeepSeek</span><span>SQLite</span><span>Browser Tools</span><span>Timer / Schedule</span>
+            <span data-zh="消息处理" data-en="Message Handling"></span>
+            <span data-zh="工具调用" data-en="Tool Execution"></span>
+            <span data-zh="长期任务" data-en="Long-running Tasks"></span>
+            <span data-zh="网页操作" data-en="Browser Actions"></span>
+            <span data-zh="结果回传" data-en="Results Back to Chat"></span>
           </div>
         </div>
-
-        <aside class="signal reveal delay-1">
-          <h2 data-zh="从消息入口到最终回传" data-en="From inbound message to final delivery"></h2>
-          <p data-zh="首页首屏直接展示系统怎么工作，而不是先丢一段泛泛介绍。对第一次看到项目的人，这一块比源码目录更重要。" data-en="The opening screen shows how the system behaves, not a generic summary. For first-time visitors, this is more useful than a source tree tour."></p>
-          <ol>
-            <li><strong>01</strong><div data-zh="接收 Lark 文本消息，并区分普通聊天与斜杠命令。" data-en="Receive Lark text messages, then split regular chat from slash commands."></div></li>
-            <li><strong>02</strong><div data-zh="用 DeepSeek 扩展目标并规划子任务。" data-en="Expand the goal with DeepSeek and turn it into ordered subtasks."></div></li>
-            <li><strong>03</strong><div data-zh="通过工具组执行，包括 memory、browser、timer、schedule 等。" data-en="Execute through tool groups including memory, browser, timer, and schedule."></div></li>
-            <li><strong>04</strong><div data-zh="把最终文本或文件回传给 Feishu / Lark。" data-en="Send the final text or files back through Feishu / Lark."></div></li>
-          </ol>
+        <aside class="hero-side reveal delay-1">
+          <h2 data-zh="先看几个你大概会关心的点" data-en="A few practical things you probably care about"></h2>
+          <div class="hero-facts">
+            <div class="hero-fact">
+              <strong data-zh="适合谁用" data-en="Who It Is For"></strong>
+              <span data-zh="如果你想把 AI 放进飞书群聊、个人对话或者日常协作里，而不是只偶尔试一试聊天，它会更对路。" data-en="It fits better if you want AI in group chats, direct chats, or day-to-day collaboration, not just as something to demo once."></span>
+            </div>
+            <div class="hero-fact">
+              <strong data-zh="它能做什么" data-en="What It Can Do"></strong>
+              <span data-zh="回问题、跑命令、查资料、调工具、读网页，最后把文本或文件结果直接发回聊天窗口。" data-en="It can answer questions, run commands, look things up, use tools, work with web pages, and send text or files back into chat."></span>
+            </div>
+            <div class="hero-fact">
+              <strong data-zh="它怎么继续跟进" data-en="How It Keeps Going"></strong>
+              <span data-zh="它能记住最近上下文，也能靠定时任务和日程事件把一次性的请求继续往下跟。" data-en="It keeps recent context and can keep one-off requests moving with timers and schedule events."></span>
+            </div>
+            <div class="hero-fact">
+              <strong data-zh="上手快不快" data-en="How Quick It Is to Start"></strong>
+              <span data-zh="把 Feishu / Lark 应用和 `.env` 配好，再按 README 里的几条命令走，服务就能先跑起来。" data-en="Once your Feishu / Lark app and `.env` are in place, a few commands from the README are enough to get it running."></span>
+            </div>
+          </div>
         </aside>
       </div>
     </section>
 
     <section class="panel reveal" id="features">
       <div class="section-head">
-        <p class="eyebrow" data-zh="前半部分" data-en="Front Half"></p>
-        <h2 data-zh="先讲为什么这个项目值得看" data-en="Start with why this project is worth attention"></h2>
-        <p data-zh="这里不重复 README 的章节顺序，而是按访客更容易理解的方式重组重点能力：编排核心、可用工具面、以及能长期运行的状态能力。" data-en="This section does not repeat the README chapter order. It reorganizes the project around what visitors need to understand first: orchestration, tool surface, and state that survives beyond a single reply."></p>
+        <p class="eyebrow" data-zh="它能做什么" data-en="What It Does"></p>
+        <h2 data-zh="它不只是回一句话，然后就结束了" data-en="It does more than answer once and stop there"></h2>
+        <p data-zh="如果你真想把 AI 用进日常协作里，关键往往不是它会不会说，而是它能不能接住事情、继续往下做，并在需要时真的动手。" data-en="If you actually want AI in day-to-day work, what matters is not just how it sounds. It is whether it can take the task, keep it moving, and do the work when needed."></p>
       </div>
       <div class="flow">
-        <article class="reveal delay-1"><span class="index">01 / Core Loop</span><h3 data-zh="把任务拆开，再允许它重来" data-en="Break work apart, then allow it to try again"></h3><p data-zh="核心机制是 Plan -> ReAct -> Replan。它先输出有序子任务，再按工具组执行，并在必要时重新规划，而不是一次性赌一个回答。" data-en="The core is the Plan -> ReAct -> Replan loop. It emits ordered subtasks, executes them with tool groups, and replans when needed instead of betting on one answer."></p></article>
-        <article class="reveal delay-2"><span class="index">02 / Tool Surface</span><h3 data-zh="不是只能聊天，而是能真正动手" data-en="Not just chat, but actual execution"></h3><p data-zh="系统工具覆盖 system、internet、memory、browser、timer、schedule。浏览器工具在单次 ReAct 中共享状态，适合真实页面交互。" data-en="Tools span system, internet, memory, browser, timer, and schedule. Browser tools stay stateful within one ReAct run, which makes real page interaction possible."></p></article>
-        <article class="reveal delay-3"><span class="index">03 / Continuity</span><h3 data-zh="有记忆，也能长期运行" data-en="Memory-backed and built for long-running work"></h3><p data-zh="聊天历史保存在 SQLite；用户画像和个人化改写风格放在 KV；定时任务和日程事件能通过同一条智能体流水线持续运行。" data-en="Chat history lives in SQLite; user profile and rewrite style live in KV; timers and schedule events keep running through the same agent pipeline over time."></p></article>
+        <article class="reveal delay-1"><span class="index" data-zh="01 / Messages" data-en="01 / Messages"></span><h3 data-zh="聊天能接，命令也能接" data-en="It handles both chat and commands"></h3><p data-zh="普通聊天和明确指令都走同一个入口。该回的时候回，该做的时候做，不用在几个机器人之间来回切。" data-en="Regular chat and explicit commands go through the same entry point. It can reply when that is enough, and act when the task asks for more."></p></article>
+        <article class="reveal delay-2"><span class="index" data-zh="02 / Ongoing Work" data-en="02 / Ongoing Work"></span><h3 data-zh="一次说完的事，它能继续跟" data-en="It can keep following up after the first ask"></h3><p data-zh="它不只处理眼前这条消息，还能靠定时任务和日程事件继续提醒、跟进、刷新状态，少一点反复交代。" data-en="It does not stop at the current message. With timers and schedules, it can keep following up, send reminders, and refresh the state without you repeating everything."></p></article>
+        <article class="reveal delay-3"><span class="index" data-zh="03 / Browser Actions" data-en="03 / Browser Actions"></span><h3 data-zh="碰到网页任务，它可以自己进去操作" data-en="When a task needs the web, it can handle that too"></h3><p data-zh="如果光靠接口不够，它可以进真实网页里读内容、点按钮、填表单、等结果，再把信息带回对话。" data-en="If an API is not enough, it can open a real page, read content, click buttons, fill forms, wait for results, and bring the answer back to chat."></p></article>
       </div>
     </section>
 
@@ -94,18 +107,18 @@
       <div class="feature-grid">
         <div class="feature-copy">
           <div class="section-head">
-            <p class="eyebrow" data-zh="重点能力" data-en="Highlights"></p>
-            <h2 data-zh="围绕“编排 + 状态 + 工具”展开" data-en="Organized around orchestration, state, and tools"></h2>
-            <p data-zh="这三块决定了它为什么不像普通 bot：它既能处理即时输入，也能保留上下文、触发定时执行、并在需要时进入浏览器完成页面级操作。" data-en="These three layers explain why it is more than a typical bot: it handles immediate input, keeps context, schedules future execution, and can enter the browser when the task requires page-level actions."></p>
+            <p class="eyebrow" data-zh="为什么用起来顺" data-en="Why It Feels Natural to Use"></p>
+            <h2 data-zh="该接的接住，该继续的继续" data-en="It keeps the work in one place"></h2>
+            <p data-zh="它把聊天入口、记忆、持续任务和需要时的网页操作放进同一套服务里，所以很多原本要靠手工补的环节，可以少折腾一点。" data-en="It keeps chat entry, memory, ongoing tasks, and browser actions in one service, so less of the workflow depends on manual patchwork."></p>
           </div>
-          <div class="feature-line"><h3 data-zh="消息接入与回复回路" data-en="Message intake and reply loop"></h3><p data-zh="飞书 / Lark websocket 负责接收文本、发送状态表情、转交 ask_user 回复，并把最终结果或生成文件回发给目标用户。" data-en="The Feishu / Lark websocket layer receives text, sends status emoji updates, routes ask_user replies, and sends final results or generated files back to the target user."></p></div>
-          <div class="feature-line"><h3 data-zh="可选 RAG 与浏览器执行" data-en="Optional RAG and browser execution"></h3><p data-zh="启用 ARKNIGHTS_RAG_MODEL 后，聊天历史可通过 sqlite-vec 和 fastembed 建索引。需要真实页面交互时，规划器还能选择 browser 工具组。" data-en="When ARKNIGHTS_RAG_MODEL is enabled, chat history can be indexed with sqlite-vec and fastembed. When real page interaction is required, the planner can select the browser tool group."></p></div>
+          <div class="feature-line"><h3 data-zh="结果还是回到原来的聊天里" data-en="The result still comes back to the same chat"></h3><p data-zh="消息进来、任务执行、结果回传都在同一条链路里。你不用把问题搬到别处处理，再把结果贴回来。" data-en="The message comes in, the work runs, and the result goes back through the same path. You do not have to move the task somewhere else and paste the answer back."></p></div>
+          <div class="feature-line"><h3 data-zh="它记得上下文，也记得该继续的事" data-en="It keeps context and keeps track of follow-up"></h3><p data-zh="聊天历史、用户画像、定时任务和日程能力让它更像一个能持续协作的助手，而不是问完就散的对话框。需要时还可以接上 RAG 和浏览器工具继续扩展。" data-en="Chat history, user profile state, timers, and schedules make it feel more like an assistant that can keep working with you than a chat box that forgets everything after one turn. You can still extend it with RAG and browser tools when needed."></p></div>
         </div>
         <div class="feature-list">
-          <div><strong data-zh="命令接口" data-en="Command Surface"></strong><span data-zh="支持 /set_personal，用于定义最终回复的个人化改写风格。" data-en="Supports /set_personal to define the personal rewrite style for outgoing final replies."></span></div>
-          <div><strong data-zh="调度能力" data-en="Scheduling"></strong><span data-zh="后台定时服务每 10 秒轮询一次到期任务，并通过同一条计划流水线执行已保存提示词。" data-en="The background timer service polls due tasks every 10 seconds and executes saved prompts through the same planning pipeline."></span></div>
-          <div><strong data-zh="数据落地" data-en="Persistence"></strong><span data-zh="SQLite 保存聊天历史、定时任务、日程事件；KV 保存用户画像和个性化配置。" data-en="SQLite stores chat history, timer tasks, and schedule events; KV stores user profile state and personalization."></span></div>
-          <div><strong data-zh="运行边界" data-en="Runtime Boundaries"></strong><span data-zh="BASH_TOOL_ENABLE 默认关闭；browser_* 依赖宿主环境可启动 Chromium；文件上传当前限制为 20MB。" data-en="BASH_TOOL_ENABLE is off by default; browser_* depends on a Chromium-capable host; file uploads are currently capped at 20MB."></span></div>
+          <div><strong data-zh="聊天入口不用拆开" data-en="One Chat Entry"></strong><span data-zh="普通消息、斜杠命令和后续回复都能进同一套服务，不用再额外拼流程。" data-en="Regular messages, slash commands, and follow-up replies all go through the same service instead of separate glue logic."></span></div>
+          <div><strong data-zh="该调工具的时候就调工具" data-en="Tools When Needed"></strong><span data-zh="它可以接上 system、internet、memory、browser、timer 和 schedule 工具，把对话继续往执行上推。" data-en="It can use system, internet, memory, browser, timer, and schedule tools when the job needs more than text."></span></div>
+          <div><strong data-zh="需要找回旧内容时也有路可走" data-en="RAG If You Need It"></strong><span data-zh="如果你想让旧聊天更容易找回，可以再开 sqlite-vec 和 fastembed 的向量检索。" data-en="If you want old conversations to be easier to find, you can turn on vector retrieval with sqlite-vec and fastembed."></span></div>
+          <div><strong data-zh="边界也说清楚了" data-en="Clear Boundaries"></strong><span data-zh="高风险的 bash 工具默认关闭；浏览器执行要看宿主环境能不能起 Chromium；文件上传当前限制 20MB。" data-en="The high-risk bash tool is off by default; browser execution depends on a Chromium-capable host; file uploads are currently limited to 20MB."></span></div>
         </div>
       </div>
     </section>
@@ -114,34 +127,34 @@
       <div class="build-grid">
         <div class="build-copy">
           <div class="section-head">
-            <p class="eyebrow" data-zh="后半部分" data-en="Back Half"></p>
-            <h2 data-zh="把编译与部署压缩成最短闭环" data-en="Compress build and deployment into the shortest useful loop"></h2>
-            <p data-zh="这一段不试图替代完整文档，只保留第一次上手最需要的东西：准备什么、填哪些环境变量、用哪些命令跑起来，以及哪些可选能力会影响宿主环境。" data-en="This section does not replace the full documentation. It keeps only what first-time operators need: what to prepare, which environment variables matter, which commands bring it up, and which optional features affect the host environment."></p>
+            <p class="eyebrow" data-zh="如何开始" data-en="Get Started"></p>
+            <h2 data-zh="想自己跑起来，可以先看这里" data-en="If you want to run it yourself, start here"></h2>
+            <p data-zh="如果你觉得这套方式适合自己的场景，第一次部署前主要就是准备账号、填好环境变量，然后跑几条命令。" data-en="If this looks like a good fit for your workflow, the first setup is mostly about getting the right accounts, filling in the environment values, and running a few commands."></p>
           </div>
           <div class="stack">
-            <section><h3 data-zh="前置条件" data-en="Prerequisites"></h3><ul><li data-zh="Rust 2024 edition 工具链" data-en="A Rust toolchain with edition 2024 support"></li><li data-zh="已启用 websocket 消息投递的 Feishu / Lark 应用" data-en="A Feishu / Lark app with websocket delivery enabled"></li><li data-zh="DeepSeek API Key；如果要启用搜索，再准备 Bocha API Key" data-en="A DeepSeek API key; add a Bocha API key if you want internet search"></li><li data-zh="如果要运行 browser_*，宿主环境必须能启动 Chromium 内核浏览器" data-en="If you want browser_*, the host must be able to launch a Chromium-based browser"></li></ul></section>
-            <section><h3 data-zh="运行期环境变量" data-en="Runtime Environment"></h3><div class="env-list"><div><b>Required</b><span data-zh="DEEPSEEK_API_KEY、LARK_APP_ID、LARK_APP_SECRET、LARK_USER_OPEN_ID" data-en="DEEPSEEK_API_KEY, LARK_APP_ID, LARK_APP_SECRET, and LARK_USER_OPEN_ID"></span></div><div><b>Optional</b><span data-zh="BOCHA_API_KEY、ARKNIGHTS_DB_PATH、ARKNIGHTS_RAG_MODEL、BASH_TOOL_ENABLE" data-en="BOCHA_API_KEY, ARKNIGHTS_DB_PATH, ARKNIGHTS_RAG_MODEL, and BASH_TOOL_ENABLE"></span></div><div><b>RAG Models</b><span>BAAI/bge-small-en-v1.5, BAAI/bge-small-zh-v1.5</span></div></div></section>
+            <section><h3 data-zh="先把这些准备好" data-en="Get These Ready First"></h3><ul><li data-zh="Rust 2024 edition 工具链" data-en="A Rust toolchain with edition 2024 support"></li><li data-zh="已启用 websocket 消息投递的 Feishu / Lark 应用" data-en="A Feishu / Lark app with websocket delivery enabled"></li><li data-zh="DeepSeek API Key；如果要启用搜索，再准备 Bocha API Key" data-en="A DeepSeek API key; add a Bocha API key if you want internet search"></li><li data-zh="如果要运行 browser_*，宿主环境必须能启动 Chromium 内核浏览器" data-en="If you want browser_*, the host needs to be able to launch a Chromium-based browser"></li></ul></section>
+            <section><h3 data-zh="然后把这些写进 .env" data-en="Then Put These into .env"></h3><div class="env-list"><div><b data-zh="必须填写" data-en="Required"></b><span data-zh="DEEPSEEK_API_KEY、LARK_APP_ID、LARK_APP_SECRET、LARK_USER_OPEN_ID" data-en="DEEPSEEK_API_KEY, LARK_APP_ID, LARK_APP_SECRET, and LARK_USER_OPEN_ID"></span></div><div><b data-zh="按需开启" data-en="Optional"></b><span data-zh="BOCHA_API_KEY、ARKNIGHTS_DB_PATH、ARKNIGHTS_RAG_MODEL、BASH_TOOL_ENABLE" data-en="BOCHA_API_KEY, ARKNIGHTS_DB_PATH, ARKNIGHTS_RAG_MODEL, and BASH_TOOL_ENABLE"></span></div><div><b data-zh="可选 RAG 模型" data-en="RAG Models"></b><span>BAAI/bge-small-en-v1.5, BAAI/bge-small-zh-v1.5</span></div></div></section>
           </div>
         </div>
 
         <aside class="terminal reveal delay-2">
-          <p class="kicker" data-zh="编译与运行命令" data-en="Build and Run"></p>
+          <p class="kicker" data-zh="先用这几条命令跑起来" data-en="Start with These Commands"></p>
           <pre class="shell"><code>git clone &lt;repo-url&gt;
 cd arknights
 cp .env.example .env
 
 cargo build
 cargo run</code></pre>
-          <p class="hint" data-zh="服务启动后会初始化全局 IM 客户端、启动后台定时循环，并打开 Lark websocket 客户端。默认数据库路径是 arknights.db，日志写入 logs/。 " data-en="After startup the service initializes the global IM client, starts the background timer loop, and opens the Lark websocket client. The default database path is arknights.db, and logs are written under logs/."></p>
+          <p class="hint" data-zh="启动后，它会连上 Lark websocket，初始化消息处理和后台定时服务。默认数据库路径是 arknights.db，日志会写进 logs/。" data-en="After startup it connects to the Lark websocket, brings up message handling, and starts the background timer service. The default database path is arknights.db, and logs go under logs/."></p>
           <pre class="shell"><code>cargo test
 cargo clippy</code></pre>
-          <p class="hint" data-zh="cargo test 会通过 src/test_support.rs 注入临时默认值，所以大多数测试不需要真实的 Lark 或 DeepSeek 凭据。" data-en="cargo test uses src/test_support.rs to inject temporary defaults, so most tests do not require real Lark or DeepSeek credentials."></p>
+          <p class="hint" data-zh="如果想先确认环境和代码状态，`cargo test` 和 `cargo clippy` 就够用了。大多数测试不需要真实的 Lark 或 DeepSeek 凭据。" data-en="If you want a quick check before going further, `cargo test` and `cargo clippy` are usually enough. Most tests do not require real Lark or DeepSeek credentials."></p>
         </aside>
       </div>
     </section>
 
     <footer class="footer">
-      <div data-zh="单文件双语静态页，适合直接放在仓库根目录或作为 GitHub 展示页入口。" data-en="A bilingual single-file static page that fits directly in the repository root or as a GitHub-facing landing page."></div>
+      <div data-zh="先看看它适不适合你的工作流，再决定要不要把它接进 Feishu / Lark。" data-en="Take a look, see if it fits your workflow, and then decide whether to bring it into Feishu / Lark."></div>
       <div class="footer-links"><a href="README.md">README</a><a href="README.zh-CN.md">README.zh-CN</a><a href=".env.example">.env.example</a><a href="LICENSE">License</a></div>
     </footer>
   </main>
@@ -153,7 +166,7 @@ cargo clippy</code></pre>
     function setLanguage(lang,save=true){
       document.documentElement.lang=lang==="zh"?"zh-CN":"en";
       document.documentElement.dataset.lang=lang;
-      textNodes.forEach(node=>node.textContent=node.dataset[lang]);
+      textNodes.forEach(node=>{if(node.dataset.rich==="true") node.innerHTML=node.dataset[lang]; else node.textContent=node.dataset[lang];});
       buttons.forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.lang===lang)));
       if(save) localStorage.setItem("arknights-lang",lang);
     }
