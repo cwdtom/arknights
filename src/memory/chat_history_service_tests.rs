@@ -36,9 +36,9 @@ async fn save_chat_history_persists_pair_and_returns_positive_id() {
 
     assert_eq!(matched_messages.len(), 2);
     assert!(matches!(matched_messages[0].role, Role::User));
-    test_support::assert_timestamped_message(&matched_messages[0].content, &user_content);
+    assert_eq!(matched_messages[0].content, user_content);
     assert!(matches!(matched_messages[1].role, Role::Assistant));
-    test_support::assert_timestamped_message(&matched_messages[1].content, &assistant_content);
+    assert_eq!(matched_messages[1].content, assistant_content);
 }
 
 #[tokio::test]
@@ -66,13 +66,13 @@ async fn build_chat_history_messages_returns_pairs_in_history_order() {
 
     assert_eq!(matched_messages.len(), 4);
     assert!(matches!(matched_messages[0].role, Role::User));
-    test_support::assert_timestamped_message(&matched_messages[0].content, &older_user);
+    assert_eq!(matched_messages[0].content, older_user);
     assert!(matches!(matched_messages[1].role, Role::Assistant));
-    test_support::assert_timestamped_message(&matched_messages[1].content, &older_assistant);
+    assert_eq!(matched_messages[1].content, older_assistant);
     assert!(matches!(matched_messages[2].role, Role::User));
-    test_support::assert_timestamped_message(&matched_messages[2].content, &newer_user);
+    assert_eq!(matched_messages[2].content, newer_user);
     assert!(matches!(matched_messages[3].role, Role::Assistant));
-    test_support::assert_timestamped_message(&matched_messages[3].content, &newer_assistant);
+    assert_eq!(matched_messages[3].content, newer_assistant);
 }
 
 #[tokio::test]
@@ -104,9 +104,9 @@ async fn build_chat_history_messages_skips_histories_older_than_24_hours() {
 
     assert_eq!(matched_messages.len(), 2);
     assert!(matches!(matched_messages[0].role, Role::User));
-    test_support::assert_timestamped_message(&matched_messages[0].content, &recent_user);
+    assert_eq!(matched_messages[0].content, recent_user);
     assert!(matches!(matched_messages[1].role, Role::Assistant));
-    test_support::assert_timestamped_message(&matched_messages[1].content, &recent_assistant);
+    assert_eq!(matched_messages[1].content, recent_assistant);
 }
 
 #[tokio::test]

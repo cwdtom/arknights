@@ -40,6 +40,12 @@ fn rewrite_user_profile_tool_schema_requires_markdown() {
     assert_eq!(schema.description, "Rewrite user profile.");
     assert_eq!(schema.parameters.required, vec!["markdown".to_string()]);
     assert!(schema.parameters.properties["markdown"].is_object());
+    assert_eq!(
+        schema.parameters.properties["markdown"]["description"],
+        format!(
+            "user profile markdown content(the character count must be less than {MAX_PROFILE_CHAR_COUNT})"
+        )
+    );
 }
 
 #[tokio::test]
@@ -59,6 +65,51 @@ async fn rewrite_user_profile_tool_persists_profile_markdown() {
     assert_eq!(
         kv_service::get_user_profile().await.unwrap(),
         "Doctor profile"
+    );
+
+    test_support::clear_user_profile().await.unwrap();
+}
+
+#[tokio::test]
+async fn rewrite_user_profile_tool_accepts_markdown_at_char_limit() {
+    let _guard = test_support::app_test_guard().await;
+    test_support::clear_user_profile().await.unwrap();
+
+    let profile = "a".repeat(MAX_PROFILE_CHAR_COUNT);
+    let arguments = serde_json::json!({ "markdown": profile.clone() }).to_string();
+    let tool = RewriteUserProfileTool::new();
+    let result = tool
+        .deep_seek_call(&tool_call("memory_rewrite_user_profile", &arguments))
+        .await;
+
+    assert_eq!(result, "Successfully rewrite user profile.");
+    assert_eq!(kv_service::get_user_profile().await.unwrap(), profile);
+
+    test_support::clear_user_profile().await.unwrap();
+}
+
+#[tokio::test]
+async fn rewrite_user_profile_tool_rejects_markdown_over_char_limit() {
+    let _guard = test_support::app_test_guard().await;
+    test_support::clear_user_profile().await.unwrap();
+    kv_service::set_user_profile("Existing profile")
+        .await
+        .unwrap();
+
+    let profile = "a".repeat(MAX_PROFILE_CHAR_COUNT + 1);
+    let arguments = serde_json::json!({ "markdown": profile }).to_string();
+    let tool = RewriteUserProfileTool::new();
+    let result = tool
+        .deep_seek_call(&tool_call("memory_rewrite_user_profile", &arguments))
+        .await;
+
+    assert_eq!(
+        result,
+        format!("Error: profile chars exceed: {MAX_PROFILE_CHAR_COUNT}")
+    );
+    assert_eq!(
+        kv_service::get_user_profile().await.unwrap(),
+        "Existing profile"
     );
 
     test_support::clear_user_profile().await.unwrap();

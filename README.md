@@ -97,6 +97,23 @@ Send a slash command like this:
 The stored style is later consumed by `src/agent/personal.rs` to rewrite final
 assistant messages before they are sent back through Lark.
 
+### Initialize the user profile by asking basic questions
+
+Send a message like this to the configured Feishu/Lark bot:
+
+```text
+Please initialize my user profile by asking me for basic information about myself, for example my preferred form of address, occupation, and geographic location.
+```
+
+What happens next:
+
+- The planner can treat this as a normal chat task and use
+  `process_control_ask_user` to ask follow-up questions in Lark.
+- After enough facts are collected, the agent can write the initial profile
+  through `memory_rewrite_user_profile`.
+- `memory_rewrite_user_profile` currently rejects profile markdown longer than
+  1000 characters, so the saved profile must stay within that limit.
+
 ### Initialize a daily user profile refresh task
 
 Send a message like this to the configured Feishu/Lark bot:
@@ -108,7 +125,8 @@ Requirements:
 2. Read the current user profile before making any changes.
 3. Use recent chat history, memory search results, and any other available tools to decide whether the profile should be updated.
 4. If the profile needs to be changed, overwrite it directly. If not, leave it unchanged.
-5. Use `daily_user_profile_refresh` as the fixed task ID and keep it running long-term.
+5. Keep the final profile markdown within the current 1000 character limit enforced by `memory_rewrite_user_profile`.
+6. Use `daily_user_profile_refresh` as the fixed task ID and keep it running long-term.
 ```
 
 What happens next:
@@ -123,6 +141,7 @@ What happens next:
   scheduled run can inspect recent chat history and RAG-backed memory results.
 - User profile reads and overwrites map to `memory_get_user_profile` and
   `memory_rewrite_user_profile`.
+- `memory_rewrite_user_profile` rejects writes longer than 1000 characters.
 
 The planner can also choose the `schedule` tool group to create, get, list,
 search, list-by-tag, update, and remove user schedule events stored in SQLite.

@@ -7,6 +7,7 @@ use tracing::{error, info};
 
 const GROUP_NAME: &str = "memory";
 const GROUP_DESC: &str = "Memory tools.";
+const MAX_PROFILE_CHAR_COUNT: usize = 1000;
 
 #[derive(Serialize, Debug)]
 pub struct SearchTool {
@@ -208,7 +209,7 @@ impl LlmTool for RewriteUserProfileTool {
                 serde_json::json!({
                     "markdown": {
                                 "type": "string",
-                                "description": "user profile markdown content"
+                                "description": format!("user profile markdown content(the character count must be less than {MAX_PROFILE_CHAR_COUNT})")
                             }
                 }),
                 vec!["markdown".to_string()],
@@ -228,6 +229,10 @@ impl LlmTool for RewriteUserProfileTool {
                     return format!("Error: invalid arguments: {}", e);
                 }
             };
+
+        if args.markdown.chars().count() > MAX_PROFILE_CHAR_COUNT {
+            return format!("Error: profile chars exceed: {MAX_PROFILE_CHAR_COUNT}");
+        }
 
         match kv_service::set_user_profile(&args.markdown).await {
             Ok(_) => "Successfully rewrite user profile.".to_string(),

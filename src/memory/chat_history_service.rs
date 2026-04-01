@@ -69,15 +69,8 @@ pub async fn build_chat_history_messages(limit: usize) -> anyhow::Result<Vec<Mes
                 .collect();
             assistant_content += "[truncated]";
         }
-        let create_time_str = history.created_at;
-        messages.push(Message::new(
-            Role::User,
-            format!("[{create_time_str}] {user_content}"),
-        ));
-        messages.push(Message::new(
-            Role::Assistant,
-            format!("[{create_time_str}] {assistant_content}"),
-        ));
+        messages.push(Message::new(Role::User, user_content));
+        messages.push(Message::new(Role::Assistant, assistant_content));
     }
 
     Ok(messages)

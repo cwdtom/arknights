@@ -58,9 +58,7 @@ fn build_system_prompt_includes_user_profile_section() {
 #[test]
 fn plan_prompt_mentions_browser_tool_group() {
     assert!(PLAN_PROMPT.contains("browser"));
-    assert!(PLAN_PROMPT.contains(
-        "interactive webpage navigation, reading, and actions"
-    ));
+    assert!(PLAN_PROMPT.contains("interactive webpage navigation, reading, and actions"));
     assert!(!PLAN_PROMPT.contains("get_html"));
     assert!(!PLAN_PROMPT.contains("close"));
 }
@@ -72,9 +70,7 @@ fn build_system_prompt_distinguishes_schedule_from_memory() {
     assert!(prompt.contains(
         "memory: Use only for chat history, semantic recall, and user profile retrieval."
     ));
-    assert!(prompt.contains(
-        "It is not the source of truth for persisted"
-    ));
+    assert!(prompt.contains("It is not the source of truth for persisted"));
     assert!(prompt.contains("schedule/calendar/event records."));
     assert!(prompt.contains(
         "schedule: Use for persisted schedule, calendar, meeting, itinerary, and event records."
@@ -150,9 +146,9 @@ async fn execute_persists_latest_expand_goal_after_replan() {
 
     assert_eq!(matched_messages.len(), 2);
     assert!(matches!(matched_messages[0].role, Role::User));
-    test_support::assert_timestamped_message(&matched_messages[0].content, &final_question);
+    assert_eq!(matched_messages[0].content, final_question);
     assert!(matches!(matched_messages[1].role, Role::Assistant));
-    test_support::assert_timestamped_message(&matched_messages[1].content, &final_answer);
+    assert_eq!(matched_messages[1].content, final_answer);
 }
 
 #[tokio::test]

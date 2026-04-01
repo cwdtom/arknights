@@ -73,15 +73,6 @@ pub(crate) fn unique_test_token(scope: &str, label: &str) -> String {
     format!("{scope}-{label}-{nanos}")
 }
 
-pub(crate) fn assert_timestamped_message(actual: &str, expected_suffix: &str) {
-    let (prefix, suffix) = actual
-        .split_once("] ")
-        .expect("message should contain RFC3339 prefix");
-    assert!(prefix.starts_with('['));
-    chrono::DateTime::parse_from_rfc3339(&prefix[1..]).unwrap();
-    assert_eq!(suffix, expected_suffix);
-}
-
 pub(crate) fn init_test_logging() {
     clear_test_logs();
     TEST_LOG_SUBSCRIBER.get_or_init(|| {
@@ -195,11 +186,6 @@ mod tests {
     fn unique_test_token_includes_scope_and_label() {
         let token = unique_test_token("scope", "label");
         assert!(token.starts_with("scope-label-"));
-    }
-
-    #[test]
-    fn assert_timestamped_message_accepts_rfc3339_prefix() {
-        assert_timestamped_message("[2026-03-27T12:34:56+08:00] hello", "hello");
     }
 
     #[tokio::test]
