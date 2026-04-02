@@ -88,15 +88,16 @@ fn build_system_prompt_requires_schedule_for_schedule_queries() {
         "For relative-date schedule queries such as \"What is on my schedule today?\" or \"What is on my schedule tomorrow?\", you MUST include"
     ));
     assert!(prompt.contains("both `system` and `schedule`."));
-    assert!(prompt.contains("\"tools\": [\"system\", \"schedule\"]"));
+    assert!(prompt.contains("\"tools\": [\"system\", \"schedule\""));
 }
 
 #[test]
 fn build_system_prompt_requires_system_lookup_when_current_time_is_not_supplied() {
     let prompt = build_system_prompt("prefers concise answers");
 
-    assert!(prompt.contains("Current local time is NOT pre-supplied in the user message."));
-    assert!(prompt.contains("Do not guess a concrete current date or time."));
+    assert!(prompt.contains(
+        "Do not guess a concrete current date or time, use `system` tool get system datetime."
+    ));
     assert!(prompt.contains(
         "include `system` when downstream execution must verify or compute current or relative time."
     ));

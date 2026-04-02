@@ -113,73 +113,6 @@ fn build_freshness(start_date: Option<&str>, end_date: Option<&str>) -> Option<S
     }
 }
 
-#[derive(Serialize, Debug)]
-pub struct Curl {
-    pub base_tool: BaseTool,
-}
-
-#[derive(Deserialize)]
-struct CurlArgs {
-    url: String,
-}
-
-#[async_trait::async_trait]
-impl LlmTool for Curl {
-    fn group_name(&self) -> &str {
-        &self.base_tool.group_name
-    }
-
-    fn name(&self) -> &str {
-        self.base_tool.name.as_str()
-    }
-
-    fn deep_seek_schema(&self) -> llm::base_llm::Function {
-        llm::base_llm::Function {
-            name: self.base_tool.name.clone(),
-            description: self.base_tool.description.clone(),
-            parameters: Parameters::new(
-                serde_json::json!({
-                    "url": {
-                            "type": "string",
-                            "description": "web url"
-                        }
-                }),
-                vec!["url".to_string()],
-            ),
-        }
-    }
-
-    async fn deep_seek_call(&self, tool_call: &ToolCall) -> String {
-        let args: CurlArgs = match serde_json::from_str(&tool_call.function.arguments) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("failed to parse curl arguments: {:?}", e);
-                return format!("Error: invalid arguments: {}", e);
-            }
-        };
-
-        let raw = util::http_utils::get(&args.url).await;
-
-        raw.unwrap_or_else(|e| {
-            error!("failed to search web: {:?}", e);
-            format!("Error: search web: {}", e)
-        })
-    }
-}
-
-impl Curl {
-    pub fn new() -> Self {
-        let base_tool = BaseTool {
-            group_name: GROUP_NAME.to_string(),
-            group_description: GROUP_DESC.to_string(),
-            name: GROUP_NAME.to_string() + "_curl",
-            description: "Curl url.".to_string(),
-        };
-
-        Curl { base_tool }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,33 +139,6 @@ mod tests {
             r#type: "function".to_string(),
             function: FunctionCall {
                 name: "internet_search".to_string(),
-                arguments: "{".to_string(),
-            },
-        };
-
-        let result = tool.deep_seek_call(&tool_call).await;
-        assert!(result.starts_with("Error: invalid arguments:"));
-    }
-
-    #[test]
-    fn curl_tool_schema_has_url_field() {
-        let tool = Curl::new();
-        let schema = tool.deep_seek_schema();
-
-        assert_eq!(schema.name, "internet_curl");
-        assert_eq!(schema.description, "Curl url.");
-        assert_eq!(schema.parameters.required, vec!["url".to_string()]);
-        assert!(schema.parameters.properties["url"].is_object());
-    }
-
-    #[tokio::test]
-    async fn curl_tool_returns_parse_error_for_invalid_arguments() {
-        let tool = Curl::new();
-        let tool_call = ToolCall {
-            id: "call_curl".to_string(),
-            r#type: "function".to_string(),
-            function: FunctionCall {
-                name: "internet_curl".to_string(),
                 arguments: "{".to_string(),
             },
         };

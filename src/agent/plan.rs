@@ -3,10 +3,9 @@ use crate::agent::{ReAct, personal};
 use crate::kv::kv_service;
 use crate::llm::Message;
 use crate::llm::Role;
-use crate::llm::base_llm::{FunctionCall, Llm, ToolCall};
+use crate::llm::base_llm::{Llm};
 use crate::{im, memory, timer};
 use anyhow::anyhow;
-use rand::distr::{Alphanumeric, SampleString};
 use serde::Deserialize;
 use std::collections::HashSet;
 use tracing::{error, warn};
@@ -26,7 +25,7 @@ Then:
 
 ## Tool Boundaries
 - system: Use for current local time or system-level operations.
-- internet: Use for external web search or fetching content from URLs.
+- internet: Use for external web search.
 - memory: Use only for chat history, semantic recall, and user profile retrieval. It is not the source of truth for persisted
 schedule/calendar/event records.
 - timer: Use for timer-task(not for user) CRUD that triggers the agent later. It is not for calendar or schedule-event records.
@@ -206,12 +205,9 @@ impl Plan {
                 let mut re_act = ReAct::new(re_act_history.clone(), self.tools.clone())?;
                 let re_act_resp = re_act.execute().await?;
                 // set sub answer, fake tool call
-                let (tool_call, tool_result) =
-                    build_tool_call_message(plan.clone(), re_act_resp.content);
-                self.llm.push_message(tool_call.clone());
-                self.llm.push_message(tool_result.clone());
-                re_act_history.push(tool_call.clone());
-                re_act_history.push(tool_result.clone());
+                let answer = build_react_message(plan.clone(), re_act_resp.content);
+                self.llm.push_message(answer.clone());
+                re_act_history.push(answer.clone());
 
                 // send reAct answer
                 send_process_message(plan.clone() + " Done");
@@ -308,38 +304,17 @@ fn send_process_message(content: String) {
     im::base_im::async_send_text(content);
 }
 
-/// fake build tool call, return tool call and tool result
-fn build_tool_call_message(question: String, result: String) -> (Message, Message) {
-    let id = format!(
-        "call_00_{}",
-        Alphanumeric.sample_string(&mut rand::rng(), 24)
-    );
-    let function_call = FunctionCall {
-        name: "reAct".to_string(),
-        arguments: serde_json::json!({
-            "question": question
-        })
-        .to_string(),
-    };
-    let tool_call = ToolCall {
-        id: id.clone(),
-        r#type: "function".to_string(),
-        function: function_call,
-    };
-    let tool_call_message = Message {
-        role: Role::Assistant,
-        content: "".to_string(),
-        tool_call_id: None,
-        tool_calls: Some(vec![tool_call]),
-    };
-    let tool_result_message = Message {
-        role: Role::Tool,
-        content: result,
-        tool_call_id: Some(id),
-        tool_calls: None,
-    };
+fn build_react_message(question: String, answer: String) -> Message {
+    Message::new(
+        Role::User,
+        format!(r#"
+            # Sub task:
+            {question}
 
-    (tool_call_message, tool_result_message)
+            # React answer:
+            {answer}
+        "#),
+    )
 }
 
 #[cfg(test)]

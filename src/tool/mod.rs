@@ -20,7 +20,6 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         let done = process_control::Done::new();
         let replan = process_control::Replan::new();
         let search = internet::Search::new();
-        let curl = internet::Curl::new();
         let memory_search_tool = memory::SearchTool::new();
         let memory_list_tool = memory::ListTool::new();
         let memory_get_user_profile_tool = memory::GetUserProfileTool::new();
@@ -53,7 +52,6 @@ static TOOL_REGISTRY: LazyLock<HashMap<String, Box<dyn LlmTool + Send + Sync>>> 
         map.insert(done.base_tool.name.clone(), Box::new(done));
         map.insert(replan.base_tool.name.clone(), Box::new(replan));
         map.insert(search.base_tool.name.clone(), Box::new(search));
-        map.insert(curl.base_tool.name.clone(), Box::new(curl));
         map.insert(
             memory_search_tool.base_tool.name.clone(),
             Box::new(memory_search_tool),
