@@ -38,7 +38,7 @@ impl LlmTool for Insert {
                 },
                 "prompt": {
                     "type": "string",
-                    "description": "task prompt"
+                    "description": "task prompt, do not include specific times; it should be a description of an actionable task."
                 },
                 "cron_expr": {
                     "type": "string",

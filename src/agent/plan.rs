@@ -29,7 +29,7 @@ Then:
 - internet: Use for external web search or fetching content from URLs.
 - memory: Use only for chat history, semantic recall, and user profile retrieval. It is not the source of truth for persisted
 schedule/calendar/event records.
-- timer: Use for timer-task CRUD that triggers the agent later. It is not for calendar or schedule-event records.
+- timer: Use for timer-task(not for user) CRUD that triggers the agent later. It is not for calendar or schedule-event records.
 - schedule: Use for persisted schedule, calendar, meeting, itinerary, and event records. This is the source of truth for saved
 schedule-event data.
 - browser: Use for interactive webpage navigation, reading, and actions when page state or DOM interaction matters.

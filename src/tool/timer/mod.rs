@@ -6,7 +6,7 @@ mod remove;
 mod update;
 
 const GROUP_NAME: &str = "timer";
-const GROUP_DESC: &str = "Timer CRUD tools.";
+const GROUP_DESC: &str = "Use for timer-task(not for user) CRUD that triggers the agent later. It is not for calendar or schedule-event records.";
 
 pub use get::Get;
 pub use insert::Insert;
